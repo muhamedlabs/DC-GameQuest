@@ -5,9 +5,8 @@ import subprocess
 import disnake
 import logging
 from disnake.ext import commands, tasks
-from BANNED_FILES.config import SPEAKER_VOICE_ID, Music_Folder, Volume_Music  # , Ffmpeg_Path
+from BANNED_FILES.config import SPEAKER_VOICE_ID, Music_Folder, Volume_Music
 
-# 🔇 Отключаем спам от Disnake
 logging.getLogger("disnake.voice_client").setLevel(logging.CRITICAL)
 
 class MusicPlayer(commands.Cog):
@@ -36,7 +35,6 @@ class MusicPlayer(commands.Cog):
         if not isinstance(voice_channel, disnake.VoiceChannel):
             return
 
-        # Ждём 30 секунд если только что отключились
         if self.last_disconnect_time is not None:
             elapsed = asyncio.get_event_loop().time() - self.last_disconnect_time
             if elapsed < 30:

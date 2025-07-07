@@ -14,7 +14,6 @@ class TextCommands(commands.Cog):
         default_member_permissions=disnake.Permissions(manage_messages=True)
     )
     async def send_text(self, inter: disnake.AppCmdInter):
-        # Проверка по ролям
         has_access = (
             any(role.id in GROUP_ADMIN_ID for role in inter.author.roles)
             if isinstance(GROUP_ADMIN_ID, list)

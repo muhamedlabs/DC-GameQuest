@@ -12,22 +12,18 @@ class WelcomeHandler(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: disnake.Member):
-        # Выдача роли
         role = member.guild.get_role(MAIN_ROLE_ID)
         if role:
             await member.add_roles(role, reason="Присоединился к серверу")
 
-        # Приветственный канал
         welcome_channel = self.bot.get_channel(GREETING_CHANNEL_ID)
         if not welcome_channel:
             return
 
-        # Проверка гифки
         if not os.path.isfile(Welcome_Gif):
             print(f"[ERROR] GIF-файл '{Welcome_Gif}' не найден.")
             return
 
-        # Создание Embed
         embed = disnake.Embed(
             title=f"<:enhance:1390972267504210062> Здравия желаю, {member.display_name}",
             description=(
@@ -40,7 +36,6 @@ class WelcomeHandler(commands.Cog):
         embed.set_image(url=f"attachment://{os.path.basename(Welcome_Gif)}")
         embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
 
-        # Отправка сообщения с embed и спойлером-упоминанием
         with open(Welcome_Gif, "rb") as f:
             gif_file = disnake.File(f, filename=os.path.basename(Welcome_Gif))
             await welcome_channel.send(
@@ -48,6 +43,3 @@ class WelcomeHandler(commands.Cog):
                 embed=embed,
                 file=gif_file
             )
-
-
-

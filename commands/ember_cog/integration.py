@@ -12,17 +12,16 @@ class IntegrationAnnouncer(commands.Cog):
         name="видео",
         description="Отправить интеграцию в youtube-дайджесты",
         dm_permission=False,
-        default_member_permissions=disnake.Permissions(manage_messages=True)  # видимость ограничена
+        default_member_permissions=disnake.Permissions(manage_messages=True)
     )
-    async def видео(
+    async def video(
         self,
         ctx: disnake.ApplicationCommandInteraction,
-        превью: str,
-        название: str,
+        preview: str,
+        title: str,
         youtube: str,
         vkontakte: str
     ):
-        # Проверка наличия роли
         has_access = (
             any(role.id in GROUP_MODER_ID for role in ctx.author.roles)
             if isinstance(GROUP_MODER_ID, list)
@@ -43,29 +42,25 @@ class IntegrationAnnouncer(commands.Cog):
             await ctx.response.send_message(embed=embed, ephemeral=True)
             return
 
-        # Получение канала
-        канал = self.bot.get_channel(VIDEO_CHANNEL_ID)
-        if not канал:
+        channel = self.bot.get_channel(VIDEO_CHANNEL_ID)
+        if not channel:
             await ctx.response.send_message(
                 "❌ Канал не найден. Проверь VIDEO_CHANNEL_ID.", ephemeral=True
             )
             return
 
-        # Формирование Embed
         embed = disnake.Embed(
-            title=название,
+            title=title,
             color=self.embed_color
         )
-        embed.set_image(url=превью)
+        embed.set_image(url=preview)
         embed.add_field(name="<:youtube:1390972086876377192> YouTube:", value=youtube, inline=False)
         embed.add_field(name="<:vk:1390972535298068570> ВКонтакте:", value=vkontakte, inline=False)
         embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
 
-        # Отправка в канал
-        await канал.send(content=self.static_header, embed=embed)
+        await channel.send(content=self.static_header, embed=embed)
 
-        # Ответ пользователю
         await ctx.response.send_message(
-            f"📡 Интеграция успешно отправлена в {канал.mention}",
+            f"📡 Интеграция успешно отправлена в {channel.mention}",
             ephemeral=True
         )
