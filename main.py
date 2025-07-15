@@ -49,9 +49,9 @@ bot.load_extension("commands.moderation_cog") # Папка с модерацие
 
 bot.load_extension("commands.information_cog") # Папка с информация о сервере
 
-bot.load_extension("commands.secrecy_cog") # Папка с секретными командами
+bot.load_extension("commands.secrecy_cog") # Папка с секретными командами через !
 
-bot.load_extension("commands.primary_cog") # Папка с особо-основными командами
+bot.load_extension("commands.primary_cog") # Папка с особо-основными действиями бота
 
 bot.load_extension("commands.database_cog.models") # Папка с выгрузкой из Redis
 

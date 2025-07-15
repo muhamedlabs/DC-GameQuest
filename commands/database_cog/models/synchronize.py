@@ -11,7 +11,7 @@ class Sync(commands.Cog):
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
     @commands.slash_command(
-        description="Загрузка UsersNotification.json",
+        description="Передача файла UsersNotification.json на сервер",
         dm_permission=False,
         default_member_permissions=disnake.Permissions(manage_messages=True)
     )
@@ -45,4 +45,4 @@ class Sync(commands.Cog):
         with open(Users_Notification, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-        await inter.edit_original_response(content="Загрузка завершена! Файл UsersNotification.json")
+        await inter.edit_original_response(content="Задача выполнена! Файл UsersNotification.json готов к использованию")

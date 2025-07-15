@@ -8,7 +8,7 @@ class TextCommands(commands.Cog):
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
     @commands.slash_command(
-        name="текст",
+        name="verification",
         description="Отправляет заранее заданный текст.",
         dm_permission=False,
         default_member_permissions=disnake.Permissions(manage_messages=True)

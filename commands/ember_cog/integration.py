@@ -66,6 +66,6 @@ class IntegrationAnnouncer(commands.Cog):
 
         # Ответ пользователю
         await ctx.response.send_message(
-            f"📡 Интеграция успешно отправлена в {канал.mention}",
+            f"Интеграция успешно отправлена в {канал.mention}",
             ephemeral=True
         )

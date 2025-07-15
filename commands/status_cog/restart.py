@@ -9,7 +9,7 @@ class ReloadAllCog(commands.Cog):
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
     @commands.slash_command(
-        name="перезагрузка",
+        name="bot_restart",
         description="Обновление конфигурации сержанта",
         dm_permission=False,
         default_member_permissions=disnake.Permissions(manage_guild=True)
