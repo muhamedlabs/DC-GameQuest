@@ -15,7 +15,7 @@ class Sync(commands.Cog):
         dm_permission=False,
         default_member_permissions=disnake.Permissions(manage_messages=True)
     )
-    async def data_UsersNotification(self, inter: disnake.ApplicationCommandInteraction):
+    async def data_users_notification(self, inter: disnake.ApplicationCommandInteraction):
         # Проверка на доступ до выполнения
         has_access = (
             any(role.id in GROUP_ADMIN_ID for role in inter.author.roles)
