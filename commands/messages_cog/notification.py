@@ -1,21 +1,16 @@
 import disnake
 from disnake.ext import commands
-import json
-import os
 import asyncio
 from datetime import datetime, timedelta
-from BANNED_FILES.config import Users_Notification, Embed_Color, Сomments_Gif
+from BANNED_FILES.config import Embed_Color, Сomments_Gif, RedisManager
+from commands.database_cog.users_notification import UsersNotification
+import os
 
 class FirstNotifier(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
-        self.users_data = {}
         self.lock = asyncio.Lock()
-
-        if os.path.exists(Users_Notification):
-            with open(Users_Notification, "r", encoding="utf-8") as f:
-                self.users_data = json.load(f)
 
     @commands.Cog.listener()
     async def on_message(self, message: disnake.Message):
@@ -23,33 +18,34 @@ class FirstNotifier(commands.Cog):
             return
 
         user_id = str(message.author.id)
-        key = user_id
-
-        if key in self.users_data:
-            return
-
-        member = message.guild.get_member(message.author.id)
-        display_name = member.display_name if member else str(message.author)
-        username = str(message.author)
-
-        moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S по МСК")
+        key = [user_id]  # Ключ в ashredis — список значений
 
         async with self.lock:
-            self.users_data[key] = {
-                "username": username,
-                "user_id": user_id,
-                "first_message_time": moscow_time,
-                "first_message_content": message.content
-            }
-            with open(Users_Notification, "w", encoding="utf-8") as f:
-                json.dump(self.users_data, f, ensure_ascii=False, indent=4)
+            async with RedisManager() as redis:
+                record = await redis.load(UsersNotification, key)
+                if record is not None:
+                    return  # Запись уже есть, ничего не делаем
 
-        # EMBED
+                member = message.guild.get_member(message.author.id)
+                display_name = member.display_name if member else str(message.author)
+                username = str(message.author)
+
+                moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S по МСК")
+
+                user_record = UsersNotification(
+                    user_id=user_id,
+                    username=username,
+                    first_message_time=moscow_time,
+                    first_message_content=message.content
+                )
+
+                await redis.save(user_record, key)
+
         embed = disnake.Embed(
             title=f"<:smart:1390972121768923166> Зафиксирован первичный радиосигнал",
             description=(
-                f"**Здравия желаю**, лейтенант **{display_name}**, вы официально подключились к боевому информационному каналу **Game Quest**. Отныне координация операций, "
-                "сбор разведданных и анализ обстановки **находятся** в вашей зоне ответственности.\n\n"
+                f"**Здравия желаю**, лейтенант **{display_name}**, вы официально подключились к боевому информационному каналу **Game Quest**. "
+                "Отныне координация операций, сбор разведданных и анализ обстановки **находятся** в вашей зоне ответственности.\n\n"
                 f"<:youtube:1390972086876377192> **YouTube:** https://www.youtube.com/@GameQuest_news\n"
                 f"<:tg:1388590213567221801> **Telegram:** https://t.me/GameQuest_news\n"
                 f"<:dc:1388590201349079050> **Discord:** https://discord.gg/GJUuPRbN5a\n"
@@ -60,9 +56,7 @@ class FirstNotifier(commands.Cog):
         )
         embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
 
-        # GIF добавление
         gif_path = os.path.abspath(Сomments_Gif)
-
         try:
             if os.path.exists(gif_path):
                 with open(gif_path, "rb") as gif:
@@ -75,4 +69,3 @@ class FirstNotifier(commands.Cog):
             pass
         except Exception as e:
             print(f"[Ошибка] Не удалось отправить embed или гифку: {e}")
-        
