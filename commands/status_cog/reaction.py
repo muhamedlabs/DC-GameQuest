@@ -1,7 +1,9 @@
 import disnake
 from disnake.ext import commands
 import datetime
-from BANNED_FILES.config import Embed_Color
+
+from BANNED_FILES.config import Embed_Color, ALLOWED_USER_IDS
+
 
 class MentionResponse(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -10,7 +12,7 @@ class MentionResponse(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: disnake.Message):
-        if message.author.bot:
+        if message.author.bot or not message.guild:
             return
 
         if self.bot.user.mentioned_in(message):
@@ -24,18 +26,27 @@ class MentionResponse(commands.Cog):
             minutes, seconds = divmod(remainder, 60)
             uptime_str = f"{days}д {hours}ч {minutes}м {seconds}с"
 
+            # Получаем упоминания создателей
+            owner_mentions = []
+            for uid in ALLOWED_USER_IDS:
+                member = message.guild.get_member(uid)
+                owner_mentions.append(member.mention if member else f"<@{uid}>")
+
             embed = disnake.Embed(
                 title=f"<:airdrop:1390972469073936414> Штаб зафиксировал ваше имя — {message.author.display_name}!",
                 description=(
-                    "Здравия желаю! Я здесь и всегда готов **помочь** и внести вклад в проект **Game Quest**.\n\n"
-                    f">>> Мой военный пинг: `{latency} мс`\n"
+                    "Здравия желаю! Я на связи и всегда готов внести вклад в проект **Game Quest**.\n\n"
+                    f">>> Мой военный пинг:  `{latency} мс`\n"
                     f"Время несения службы: `{uptime_str}`\n"
-                    "Мои создатели: <@768782555171782667> и <@787093771115692062>\n"
-                    "Website Muhameda: [muhamedlabs.pro](https://muhamedlabs.pro)"
+                    f"Мои создатели: {', '.join(owner_mentions)}\n"
+                    f"Website Muhameda: https://muhamedlabs.pro"
                 ),
                 color=self.embed_color
             )
-            embed.set_thumbnail(url=self.bot.user.avatar.url)
+
+            if self.bot.user.avatar:
+                embed.set_thumbnail(url=self.bot.user.avatar.url)
+
             embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
 
             await message.channel.send(embed=embed)
