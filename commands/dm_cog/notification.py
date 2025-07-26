@@ -3,7 +3,7 @@ from disnake.ext import commands
 import asyncio
 from datetime import datetime, timedelta
 from BANNED_FILES.config import Embed_Color, Сomments_Gif, RedisManager
-from commands.database_cog.users_notification import UsersNotification
+from redis_storage.users_notification import UsersNotification
 import os
 
 class FirstNotifier(commands.Cog):
