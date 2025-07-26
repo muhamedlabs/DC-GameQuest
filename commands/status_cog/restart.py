@@ -1,7 +1,7 @@
 import disnake
 from disnake.ext import commands
 import os
-from BANNED_FILES.config import Embed_Color, Reboot_Gif, GROUP_ADMIN_ID
+from BANNED_FILES.config import Embed_Color, Reboot_Gif, GROUP_ADMIN_ID, IGNORED_RELOAD_DIRS
 
 class ReloadAllCog(commands.Cog):
     def __init__(self, bot):
@@ -40,12 +40,17 @@ class ReloadAllCog(commands.Cog):
         base_dir = os.path.join(os.getcwd(), "commands")
         errors = []
         success = []
+        skipped = []
 
         gif_path = Reboot_Gif
         gif_attached = os.path.exists(gif_path)
         file = disnake.File(gif_path, filename="reload.gif") if gif_attached else None
 
         for entry in os.listdir(base_dir):
+            if entry in IGNORED_RELOAD_DIRS:
+                skipped.append(f"`{entry}`")
+                continue
+
             path = os.path.join(base_dir, entry)
             if os.path.isdir(path):
                 cog_name = f"commands.{entry}"
@@ -61,7 +66,7 @@ class ReloadAllCog(commands.Cog):
         embed = disnake.Embed(
             title="<:cloudchange:1388950504297726113> Тактическая перезагрузка завершена",
             description=(
-                "> По данным, состояние боевых когов оценивается как **стабильно напряжённое**.\n"
+                ">>> По данным, состояние боевых когов оценивается как **стабильно напряжённое**. "
                 "Наблюдается планомерное выполнение поставленных **задач** при сохранении постоянной боеготовности."
             ),
             color=self.embed_color
@@ -71,6 +76,13 @@ class ReloadAllCog(commands.Cog):
             embed.add_field(
                 name="<:chartsuccess:1388950545733124106> Успешно восстановлены:",
                 value="\n".join(success),
+                inline=False
+            )
+
+        if skipped:
+            embed.add_field(
+                name="<:health:1398745774036094996> Пропущены (игнор):",
+                value="\n".join(skipped),
                 inline=False
             )
 
