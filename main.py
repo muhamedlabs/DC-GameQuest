@@ -29,13 +29,13 @@ async def on_ready():
     print(f"Bot {bot.user} is up and running!")
 
 # Загружаем коги
-bot.load_extension("commands.status_cog") # Папка статус
+bot.load_extension("commands.status_cog") # Папка статус для бота
 
-# bot.load_extension("commands.speaker_cog") # Папка спикер
+bot.load_extension("commands.speaker_cog") # Папка спикер-бот
 
-# bot.load_extension("commands.design_cog") # Папка с дизайном профилей дискорда
+bot.load_extension("commands.design_cog") # Папка с дизайном профилей дискорда
 
-# bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
+bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
 
 bot.load_extension("commands.advertisement_cog") # Папка с саморекламой от бота
 
@@ -45,23 +45,23 @@ bot.load_extension("commands.dm_cog") # Папка с личными сообщ�
 
 bot.load_extension("commands.ember_cog") # Папка с ембитам для отправки
 
-# bot.load_extension("commands.events_cog") # Папка с событиями на сервере и боте
+bot.load_extension("commands.events_cog") # Папка с событиями на сервере и боте
 
-# bot.load_extension("commands.reaction_cog") # Папка с рекциями на сообщения
+bot.load_extension("commands.reaction_cog") # Папка с рекциями на сообщения
 
-# bot.load_extension("commands.moderation_cog") # Папка с модерацией на сервере и в боте
+bot.load_extension("commands.moderation_cog") # Папка с модерацией на сервере и в боте
 
-# bot.load_extension("commands.information_cog") # Папка с информация о сервере
+bot.load_extension("commands.information_cog") # Папка с информация о сервере
 
-# bot.load_extension("commands.secrecy_cog") # Папка с секретными командами через !
+bot.load_extension("commands.secrecy_cog") # Папка с секретными командами через !
 
-# bot.load_extension("commands.primary_cog") # Папка с особо-основными действиями бота
+bot.load_extension("commands.primary_cog") # Папка с особо-основными действиями бота
 
-# bot.load_extension("commands.database_cog.models") # Папка с выгрузкой из Redis
+bot.load_extension("commands.database_cog.models") # Папка с выгрузкой из Redis
 
-bot.load_extension("commands.button_cog") # Папка с кнопками по айдишке
+bot.load_extension("commands.button_cog") # Папка с кнопками по айдишке для бота
 
-bot.load_extension("commands.private_cog")
+bot.load_extension("commands.private_cog") # Папка с созданием частного голосового канала
 
 
 # Запуск
