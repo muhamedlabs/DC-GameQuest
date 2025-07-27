@@ -1,5 +1,5 @@
 from disnake.ext import commands
-from .posts import TelegramBridge
+from .telegram import TelegramBridge
 
 
 def setup(bot: commands.Bot):
