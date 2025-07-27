@@ -57,7 +57,7 @@ bot.load_extension("commands.secrecy_cog") # Папка с секретными 
 
 bot.load_extension("commands.primary_cog") # Папка с особо-основными действиями бота
 
-bot.load_extension("commands.database_cog.models") # Папка с выгрузкой из Redis
+bot.load_extension("commands.database_cog") # Папка с выгрузкой из Redis файли
 
 bot.load_extension("commands.button_cog") # Папка с кнопками по айдишке для бота
 
