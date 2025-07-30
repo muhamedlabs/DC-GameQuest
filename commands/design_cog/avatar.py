@@ -2,9 +2,10 @@ import disnake
 from disnake.ext import commands
 from BANNED_FILES.config import Embed_Color
 
+
 class AvatarView(disnake.ui.View):
     def __init__(self, user: disnake.User, member: disnake.Member | None):
-        super().__init__(timeout=None)  # Кнопки не исчезают
+        super().__init__(timeout=None)
         self.user = user
         self.member = member
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
@@ -13,7 +14,6 @@ class AvatarView(disnake.ui.View):
     async def global_avatar_button(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
         avatar_url = self.user.avatar.url if self.user.avatar else self.user.default_avatar.url
         description = "> За этим глобальным аватаром скрывается настоящий воин (или теран?)"
-
         name = self.member.display_name if self.member else self.user.name
 
         embed = disnake.Embed(
@@ -49,8 +49,14 @@ class AvatarCommands(commands.Cog):
         self.bot = bot
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
-    @commands.slash_command(name="голограмма", description="Показать голограмму пользователя")
-    async def avatar(self, inter: disnake.AppCmdInter, пользователь: disnake.User = None):
+    @commands.slash_command(name="голограмма", description="Показать боевою голограмму пользователя")
+    async def avatar(
+        self,
+        inter: disnake.AppCmdInter,
+        пользователь: disnake.User = commands.Param(
+            name="пользователь", description="Участник сервера или пользователь Discord", default=None
+        )
+    ):
         user = пользователь or inter.author
         member = inter.guild.get_member(user.id) if inter.guild else None
 
