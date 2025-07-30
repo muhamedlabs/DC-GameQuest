@@ -2,7 +2,7 @@ import disnake
 from disnake.ext import commands
 import asyncio
 from datetime import datetime, timedelta
-from BANNED_FILES.config import Embed_Color, Сomments_Gif, RedisManager
+from BANNED_FILES.config import Embed_Color, Comments_Gif, RedisManager
 from redis_storage.users_notification import UsersNotification
 import os
 
@@ -56,7 +56,7 @@ class FirstNotifier(commands.Cog):
         )
         embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
 
-        gif_path = os.path.abspath(Сomments_Gif)
+        gif_path = os.path.abspath(Comments_Gif)
         try:
             if os.path.exists(gif_path):
                 with open(gif_path, "rb") as gif:
