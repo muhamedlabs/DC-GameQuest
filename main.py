@@ -28,6 +28,8 @@ bot.start_time = datetime.datetime.utcnow()
 async def on_ready():
     print(f"Bot {bot.user} is up and running!")
 
+
+
 # Загружаем коги
 bot.load_extension("commands.status_cog") # Папка статус для бота
 
@@ -43,7 +45,9 @@ bot.load_extension("commands.messages_cog") # Папка с сообщениям
 
 bot.load_extension("commands.dm_cog") # Папка с личными сообщениями от бота
 
-bot.load_extension("commands.ember_cog") # Папка с ембитам для отправки
+bot.load_extension("commands.dispatcher_cog") # Папка с отправленными ембиту и другими материалами от бота
+
+bot.load_extension("commands.postulate_cog") # Папка с постулатами и законами от бота
 
 bot.load_extension("commands.events_cog") # Папка с событиями на сервере и боте
 
@@ -62,6 +66,8 @@ bot.load_extension("commands.database_cog") # Папка с выгрузкой �
 bot.load_extension("commands.button_cog") # Папка с кнопками по айдишке для бота
 
 bot.load_extension("commands.private_cog") # Папка с созданием частного голосового канала
+
+bot.load_extension("commands.entertainment_cog") # Папка с контентом для досуга пользователей
 
 
 # Запуск
