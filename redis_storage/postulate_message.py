@@ -3,7 +3,7 @@ from typing import Optional
 from ashredis import RecordBase, MISSING
 
 @dataclass
-class Ember_Message(RecordBase):
+class Postulate_Message(RecordBase):
     channel_id: str
     message_id: Optional[str] = MISSING
-    time_message_: Optional[str] = MISSING
+    time_message: Optional[str] = MISSING

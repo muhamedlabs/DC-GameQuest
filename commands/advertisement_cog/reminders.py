@@ -66,7 +66,7 @@ class AutoPromo(commands.Cog):
             try:
                 if record.sub_counter >= self.message_threshold_sub:
                     embed = disnake.Embed(
-                        title="<:aiusers:1388576262355943434> Сводка по социальным платформам",
+                        title="<:aiusers:1388576262355943434> Оперативная cводка по социальным платформам",
                         description=(
                             "Товарищи лейтенанты! Команда **Game Quest** напоминает о необходимости **контроля** всех секторов информационного фронта!\n\n"
                             "<:youtube:1390972086876377192> **YouTube:** https://www.youtube.com/@GameQuest_news\n"
