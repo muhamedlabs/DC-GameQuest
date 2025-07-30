@@ -5,7 +5,7 @@ import pytz
 import asyncio
 from commands.button_cog.button_id import ButtonID
 from BANNED_FILES.config import Embed_Color, LATENT_TOWER_IDS, CREATE_PRIVATE_ID, Voice_Image, RedisManager
-from redis_storage.ember_message import Ember_Message
+from redis_storage.postulate_message import Postulate_Message
 
 REDIS_KEY_PREFIX = "auto_voice_message"
 MOSCOW_TZ = pytz.timezone("Europe/Moscow")
@@ -49,7 +49,7 @@ class AutoVoiceInfo(commands.Cog):
 
     async def restore_views(self):
         prefix = f"{REDIS_KEY_PREFIX}:*"
-        records = await self.redis.load_many(Ember_Message, prefix)
+        records = await self.redis.load_many(Postulate_Message, prefix)
         for record in records:
             try:
                 channel = self.bot.get_channel(int(record.channel_id))
@@ -70,10 +70,10 @@ class AutoVoiceInfo(commands.Cog):
         message = await ctx.send(embed=embed, file=file, view=view)
 
         now_msk = datetime.now(tz=MOSCOW_TZ)
-        record = Ember_Message(
+        record = Postulate_Message(
             channel_id=str(ctx.channel.id),
             message_id=str(message.id),
-            time_message_=now_msk.isoformat()
+            time_message=now_msk.isoformat()
         )
         key = f"{REDIS_KEY_PREFIX}:{ctx.channel.id}"
         await self.redis.save(record, key)
@@ -81,14 +81,14 @@ class AutoVoiceInfo(commands.Cog):
     @tasks.loop(hours=24)
     async def message_rotation_loop(self):
         prefix = f"{REDIS_KEY_PREFIX}:*"
-        records = await self.redis.load_many(Ember_Message, prefix)
+        records = await self.redis.load_many(Postulate_Message, prefix)
         if not records:
             return
 
         now_msk = datetime.now(tz=MOSCOW_TZ)
         for record in records:
             try:
-                sent_time = datetime.fromisoformat(record.time_message_)
+                sent_time = datetime.fromisoformat(record.time_message)
                 sent_time = sent_time.astimezone(MOSCOW_TZ)
 
                 if now_msk - sent_time >= timedelta(days=90):
@@ -106,10 +106,10 @@ class AutoVoiceInfo(commands.Cog):
                     view = VoiceInfoView(self.embed_color)
                     new_message = await channel.send(embed=embed, file=file, view=view)
 
-                    updated_record = Ember_Message(
+                    updated_record = Postulate_Message(
                         channel_id=str(channel.id),
                         message_id=str(new_message.id),
-                        time_message_=now_msk.isoformat()
+                        time_message=now_msk.isoformat()
                     )
                     key = f"{REDIS_KEY_PREFIX}:{channel.id}"
                     await self.redis.save(updated_record, key)
