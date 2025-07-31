@@ -21,7 +21,7 @@ class CleanCommand(commands.Cog):
                 try:
                     await msg.delete()
                     deleted_count += 1
-                    await asyncio.sleep(0.3)  # задержка между удалениями
+                    await asyncio.sleep(0.8)  # задержка между удалениями
                 except disnake.Forbidden:
                     continue  # нет прав на удаление этого сообщения
                 except Exception as e:
@@ -40,7 +40,7 @@ class CleanCommand(commands.Cog):
             )
 
             msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
+            await asyncio.sleep(15)
             await msg.delete()
 
         except Exception as e:
