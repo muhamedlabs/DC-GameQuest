@@ -20,8 +20,6 @@ class StreamDuplicator:
         self.bot_avatar: bytes = b""
         self.skip_lines = 2
 
-        asyncio.create_task(self.prepare())
-
     def start(self):
         sys.stdout = self
         sys.stderr = self
@@ -47,7 +45,7 @@ class StreamDuplicator:
                     if not loop.is_closed():
                         loop.create_task(self.send_to_discord(line))
                 except RuntimeError:
-                    pass  # Цикл уже закрыт — безопасно игнорируем
+                    pass  # Цикл закрыт — безопасно игнорируем
 
     def flush(self):
         self.original_stdout.flush()
@@ -63,7 +61,7 @@ class StreamDuplicator:
                 async with session.get(url) as resp:
                     self.bot_avatar = await resp.read()
         except Exception as e:
-            logging.error(f"[ErrorLogger] Ошибка при загрузке аватарки бота: {e}")
+            print(f"[ErrorLogger] Ошибка при загрузке аватарки бота: {e}")
 
     async def ensure_webhook(self):
         if self.webhook:
@@ -74,8 +72,7 @@ class StreamDuplicator:
 
         channel = self.bot.get_channel(self.channel_id)
         if not channel:
-            self.original_stdout.write("[ErrorLogger] Канал не найден\n")
-            self.original_stdout.flush()
+            print("[ErrorLogger] Канал не найден")
             return None
 
         webhook_name = f"{self.bot.user.name}_Error"
@@ -90,9 +87,9 @@ class StreamDuplicator:
             self.webhook = await channel.create_webhook(name=webhook_name, avatar=self.bot_avatar)
             return self.webhook
         except disnake.Forbidden:
-            logging.error(f"[ErrorLogger] Нет прав на создание вебхука в канале {channel.id}")
+            print(f"[ErrorLogger] Нет прав на создание вебхука в канале {channel.id}")
         except Exception as e:
-            logging.error(f"[ErrorLogger] Ошибка при создании вебхука: {e}")
+            print(f"[ErrorLogger] Ошибка при создании вебхука: {e}")
         return None
 
     async def send_to_discord(self, text):
@@ -118,14 +115,17 @@ class StreamDuplicator:
 
             await webhook.send(embed=embed, username=webhook.name)
         except Exception as e:
-            self.original_stdout.write(f"[ErrorLogger] Ошибка отправки через вебхук: {e}\n")
-            self.original_stdout.flush()
+            print(f"[ErrorLogger] Ошибка отправки через вебхук: {e}")
 
 
 class ErrorLogger(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.stream_duplicator = StreamDuplicator(bot, ERR_CHANNEL_ID)
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        await self.stream_duplicator.prepare()
         self.stream_duplicator.start()
 
     def cog_unload(self):
