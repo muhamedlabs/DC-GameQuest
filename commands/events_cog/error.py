@@ -18,8 +18,9 @@ class StreamDuplicator:
 
         self.webhook = None
         self.bot_avatar: bytes = b""
-        self.skip_lines = 2  # пропускаем первые 2 строки вывода
-        self.bot.loop.create_task(self.prepare())
+        self.skip_lines = 2
+
+        asyncio.create_task(self.prepare())
 
     def start(self):
         sys.stdout = self
@@ -41,9 +42,12 @@ class StreamDuplicator:
                 if self.skip_lines > 0:
                     self.skip_lines -= 1
                     continue
-                asyncio.get_event_loop().create_task(
-                    self.send_to_discord(line)
-                )
+                try:
+                    loop = asyncio.get_event_loop()
+                    if not loop.is_closed():
+                        loop.create_task(self.send_to_discord(line))
+                except RuntimeError:
+                    pass  # Цикл уже закрыт — безопасно игнорируем
 
     def flush(self):
         self.original_stdout.flush()
@@ -64,6 +68,9 @@ class StreamDuplicator:
     async def ensure_webhook(self):
         if self.webhook:
             return self.webhook
+
+        if self.bot.is_closed():
+            return None
 
         channel = self.bot.get_channel(self.channel_id)
         if not channel:
@@ -89,33 +96,27 @@ class StreamDuplicator:
         return None
 
     async def send_to_discord(self, text):
-        await self.bot.wait_until_ready()
-        webhook = await self.ensure_webhook()
-        if not webhook:
-            return
-
-        max_len = 3900
-        description = (
-            text[:max_len] + "\n\n... продолжение в терминале"
-            if len(text) > max_len else text
-        )
-
-        moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
-
-        embed = disnake.Embed(
-            title="<:cpusetting:1387061989179658271> Критический отчёт системы военной связи",
-            description=(
-                f"```{description}```\n"
-                f"<:calendar:1390972430780203058> **Время отчёта:** {moscow_time} по МСК"
-            ),
-            color=disnake.Color(int(Embed_Color.lstrip("#"), 16))
-        )
-
         try:
-            await webhook.send(
-                embed=embed,
-                username=webhook.name
+            await self.bot.wait_until_ready()
+            webhook = await self.ensure_webhook()
+            if not webhook:
+                return
+
+            max_len = 3900
+            description = (
+                text[:max_len] + "\n\n... продолжение в терминале"
+                if len(text) > max_len else text
             )
+
+            moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+
+            embed = disnake.Embed(
+                title="<:cpusetting:1387061989179658271> Критический отчёт системы военной связи",
+                description=f"```{description}```\n<:calendar:1390972430780203058> **Время отчёта:** {moscow_time} по МСК",
+                color=disnake.Color(int(Embed_Color.lstrip("#"), 16))
+            )
+
+            await webhook.send(embed=embed, username=webhook.name)
         except Exception as e:
             self.original_stdout.write(f"[ErrorLogger] Ошибка отправки через вебхук: {e}\n")
             self.original_stdout.flush()

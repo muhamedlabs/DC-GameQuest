@@ -25,10 +25,19 @@ class TelegramBridge(commands.Cog):
         self.bot.loop.create_task(self.cache_discord_channel())
 
     async def cog_load(self):
-        pass  # если есть нужда, можно добавить
+        pass  # если нужно, добавь инициализацию здесь
 
-    async def cog_unload(self):
-        pass  # если есть нужда, можно добавить
+    def cog_unload(self):
+        # безопасное завершение через create_task
+        asyncio.create_task(self.shutdown_telegram())
+        asyncio.create_task(self.message_mapper.close())
+
+    async def shutdown_telegram(self):
+        try:
+            await telegram_client.disconnect()
+            print("Telegram client disconnected.")
+        except Exception as e:
+            print(f"Ошибка при отключении telegram_client: {e}")
 
     async def init_telegram(self):
         await self.bot.wait_until_ready()
