@@ -31,7 +31,7 @@ async def on_ready():
 
 
 # Загружаем коги
-bot.load_extension("commands.status_cog") # Папка статус для бота
+bot.load_extension("commands.status_cog") # Папка статус для бота(Переменовать)
 
 bot.load_extension("commands.speaker_cog") # Папка спикер-бот
 
@@ -59,7 +59,7 @@ bot.load_extension("commands.information_cog") # Папка с информац�
 
 bot.load_extension("commands.secrecy_cog") # Папка с секретными командами через !
 
-bot.load_extension("commands.primary_cog") # Папка с особо-основными действиями бота
+bot.load_extension("commands.respond_cog") # Папка с ответами и пингом от бота
 
 bot.load_extension("commands.database_cog") # Папка с выгрузкой из Redis файли
 
