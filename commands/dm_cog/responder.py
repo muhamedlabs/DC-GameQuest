@@ -28,7 +28,7 @@ class DMResponder(commands.Cog):
                     # Отправляем ответ
                     file = disnake.File(Community_Image, filename="community.png")
                     embed = disnake.Embed(
-                        title="<:aicomment:1390972485410881588> Штабное сообщение от Сержанта",
+                        title="<:aicomment:1390972485410881588> Штабное сообщение от сержанта",
                         description=(
                             ">>> Сержант в настоящий момент **задействован** на основном сервере. "
                             "Ответ временно невозможен, **благодарим** за понимание."
