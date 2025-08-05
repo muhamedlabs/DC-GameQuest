@@ -1,14 +1,11 @@
 import disnake
 from disnake.ext import commands, tasks
+from BANNED_FILES.config import Activity_Bot
 
 class StatusBot(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.status_list = [
-            "YouTube: Game Quest",
-            "Telegram: Game Quest", 
-            "muhamedlabs.pro"
-        ]
+        self.status_list = Activity_Bot
         self.current_status = 0
         self.status_task.start()
 
