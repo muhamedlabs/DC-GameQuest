@@ -77,7 +77,8 @@ class VoiceControl(commands.Cog):
             embed = disnake.Embed(
                 title="<:callcalling:1390972394268659753> Сержант подключился к сети",
                 description=(
-                    f"> Голосовая связь **установлена** по приказу: {inter.author.mention}.\n"
+                    f"> Голосовая связь **установлена** по приказу: {inter.author.mention}. "
+                    f"Операция в полном разгаре, связь **стабильна** и под контролем штаба.\n\n"
                     f"<:channel:1390972349385281630> **Сектор:** {self.channel_mention(voice_channel)}\n"
                     f"<:calendar:1390972430780203058> **Время подключения:** {moscow_time} по МСК"
                 ),
@@ -100,7 +101,8 @@ class VoiceControl(commands.Cog):
                 embed = disnake.Embed(
                     title="<:callslash:1390972370508054578> Сержант покинул сектор",
                     description=(
-                        f"> Голосовая связь **разорвана** по приказу: {inter.author.mention}.\n"
+                        f"> Голосовая связь **разорвана** по приказу: {inter.author.mention}. "
+                        f"Линия молчит, миссия окончена. **Ожидаем** новых распоряжений штаба.\n\n"
                         f"<:channel:1390972349385281630> **Сектор:** {self.channel_mention(voice_channel)}\n"
                         f"<:calendar:1390972430780203058> **Время отключения:** {moscow_time} по МСК"
                     ),
