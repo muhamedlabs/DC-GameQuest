@@ -27,7 +27,7 @@ class MentionResponse(commands.Cog):
 
             embed.add_field(
                 name="<:watchstatus:1388950489005166612> Позывной и данные по сержанту:",
-                value="```!Game Quest``` ",
+                value="```!GameQuest``` ",
                 inline=False
             )
 
