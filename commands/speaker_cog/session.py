@@ -64,7 +64,7 @@ class VoiceSessionTracker(commands.Cog):
             key = [f"voice_session:{session_id}"]
 
             async with RedisManager() as redis:
-                await redis.save(session, key, ttl=timedelta(days=15))
+                await redis.save(session, key, ttl=timedelta(days=3))
                 await self._set_session_counter(session_id)
 
             self.active_sessions[channel_id] = session_id
