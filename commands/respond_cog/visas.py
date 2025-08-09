@@ -1,30 +1,21 @@
 import disnake
 from disnake.ext import commands
 import datetime
+import logging
 
 from BANNED_FILES.config import Embed_Color, ALLOWED_USER_IDS
+
+logger = logging.getLogger(__name__)
 
 class ResponseToCall(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
-        # Инициализация времени старта
         if not hasattr(self.bot, "start_time"):
             self.bot.start_time = datetime.datetime.utcnow()
 
-    @commands.Cog.listener()
-    async def on_message(self, message: disnake.Message):
-        # Игнорируем ботов и личные сообщения
-        if message.author.bot or not message.guild:
-            return
-
-        # Проверка точной команды (без учета регистра и пробелов в начале/конце)
-        if message.content.strip().lower() != "!game quest":
-            return
-
-        # Пинг бота в миллисекундах
+    async def send_info_embed(self, target, author, guild):
         latency = round(self.bot.latency * 1000)
-
         now = datetime.datetime.utcnow()
         uptime = now - getattr(self.bot, "start_time", now)
         days = uptime.days
@@ -34,11 +25,11 @@ class ResponseToCall(commands.Cog):
 
         owner_mentions = []
         for uid in ALLOWED_USER_IDS:
-            member = message.guild.get_member(uid)
+            member = guild.get_member(uid)
             owner_mentions.append(member.mention if member else f"<@{uid}>")
 
         embed = disnake.Embed(
-            title=f"<:airdrop:1390972469073936414> Штаб зафиксировал ваше имя — {message.author.display_name}!",
+            title=f"<:airdrop:1390972469073936414> Штаб зафиксировал ваше имя — {author.display_name}!",
             description=(
                 "Здравия желаю! Я на связи и всегда готов внести вклад в проект **Game Quest**.\n\n"
                 f">>> Мой военный пинг:  `{latency} мс`\n"
@@ -52,12 +43,29 @@ class ResponseToCall(commands.Cog):
         if self.bot.user.avatar:
             embed.set_thumbnail(url=self.bot.user.avatar.url)
 
-        try:
-            await message.channel.send(embed=embed)
-        except disnake.Forbidden:
-            # Нет прав на отправку сообщений в этот канал
-            pass
-        except Exception as e:
-            print(f"Error sending embed in ResponseToCall: {e}")
+        await target.send(embed=embed)
 
-        
+    @commands.command(
+        name="gamequest",
+        aliases=["game_quest"],
+        help="Передача информации о сержанта (бота)"
+    )
+    async def gamequest_command(self, ctx: commands.Context):
+        try:
+            await self.send_info_embed(ctx, ctx.author, ctx.guild)
+        except disnake.Forbidden:
+            logger.warning(f"Нет прав для отправки сообщения пользователю {ctx.author}")
+        except Exception as e:
+            logger.error(f"Ошибка в gamequest_command: {e}")
+
+    @commands.Cog.listener()
+    async def on_message(self, message: disnake.Message):
+        if message.author.bot or not message.guild:
+            return
+
+        content = message.content.strip().lower()
+        # Лучше ловить префиксы через commands.Bot, но если так:
+        if content == "!game quest":
+            ctx = await self.bot.get_context(message)
+            if ctx.command is None:  # Чтобы не вызвать команду дважды, если уже существует
+                await self.gamequest_command(ctx)

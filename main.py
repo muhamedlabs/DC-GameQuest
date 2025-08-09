@@ -19,7 +19,7 @@ intents.voice_states = True
 intents.guilds = True
 
 # Инициализация бота
-bot = commands.Bot(command_prefix="!", intents=intents, test_guilds=[DISCORD_ID])
+bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, test_guilds=[DISCORD_ID])
 
 bot.start_time = datetime.datetime.utcnow()
 
