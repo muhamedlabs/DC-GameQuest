@@ -7,7 +7,7 @@ import logging
 from disnake.ext import commands, tasks
 from BANNED_FILES.config import SPEAKER_VOICE_ID, Music_Folder, Volume_Music
 
-# 🔇 Отключаем спам от Disnake
+# Отключаем спам от Disnake в логах по voice_client
 logging.getLogger("disnake.voice_client").setLevel(logging.CRITICAL)
 
 class MusicPlayer(commands.Cog):
@@ -37,6 +37,7 @@ class MusicPlayer(commands.Cog):
                 print(f"[MusicPlayer] Ошибка при отключении: {e}")
             finally:
                 self.voice_client = None
+                self.last_disconnect_time = asyncio.get_event_loop().time()
 
     async def connect_and_play(self):
         async with self.connecting_lock:
@@ -45,9 +46,10 @@ class MusicPlayer(commands.Cog):
 
             voice_channel = self.bot.get_channel(SPEAKER_VOICE_ID)
             if not isinstance(voice_channel, disnake.VoiceChannel):
-                print("SPEAKER_VOICE_ID указан неверно или канал не существует.")
+                print("[MusicPlayer] Канал не найден или не является голосовым")
                 return
 
+            # Если недавно отключались — подождать минимум 30 секунд
             if self.last_disconnect_time is not None:
                 elapsed = asyncio.get_event_loop().time() - self.last_disconnect_time
                 if elapsed < 30:
@@ -58,6 +60,7 @@ class MusicPlayer(commands.Cog):
                     if self.voice_client.channel.id != voice_channel.id:
                         await self.voice_client.move_to(voice_channel)
                 else:
+                    # Принудительно отключаем, если надо
                     await self.force_disconnect()
                     self.voice_client = await voice_channel.connect()
 
@@ -65,12 +68,12 @@ class MusicPlayer(commands.Cog):
                     await self.integration_cog.send_or_update_message("Ожидание пожалуста музыки....")
 
             except disnake.ClientException as e:
-                print(f"[MusicPlayer] Ошибка при подключении к голосовому каналу: {e}")
+                print(f"[MusicPlayer] Ошибка подключения к голосовому каналу: {e}")
                 return
 
-            await asyncio.sleep(15)
+            await asyncio.sleep(15)  # Можно подстроить задержку, если нужно
 
-            files = [f for f in os.listdir(self.music_folder) if f.endswith((".mp3", ".wav", ".ogg", ".aac"))]
+            files = [f for f in os.listdir(self.music_folder) if f.lower().endswith((".mp3", ".wav", ".ogg", ".aac"))]
             if not files:
                 print("[MusicPlayer] Музыкальные файлы не найдены.")
                 return
@@ -98,9 +101,8 @@ class MusicPlayer(commands.Cog):
                     )
                     player = disnake.PCMVolumeTransformer(source, volume=self.volume)
                     self.voice_client.play(player)
-
                 except Exception as e:
-                    print(f"[MusicPlayer] Ошибка при воспроизведении файла {file}: {e}")
+                    print(f"[MusicPlayer] Ошибка воспроизведения файла {file}: {e}")
                     self.last_disconnect_time = asyncio.get_event_loop().time()
                     await self.force_disconnect()
                     break

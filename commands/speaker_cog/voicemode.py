@@ -37,8 +37,7 @@ class VoiceControl(commands.Cog):
                 title="<:forbidden:1390972224436965386> Доступ к команде заблокирован",
                 description=(
                     "У вас **отсутствуют полномочия** для выполнения данного приказа.\n\n"
-                    ">>> Если вы считаете, что это ошибка — немедленно свяжитесь с адмиралом базы: "
-                    f"{inter.guild.owner.mention}"
+                    f">>> Если вы считаете, что это ошибка — свяжитесь с адмиралом базы: {inter.guild.owner.mention}"
                 ),
                 color=self.embed_color
             )
@@ -54,38 +53,31 @@ class VoiceControl(commands.Cog):
             )
             return
 
-        text_channel = inter.channel  # Канал, где была вызвана команда
         file = disnake.File(Speechify_Image, filename="vocast.png")
 
+        music_player = self.bot.get_cog("MusicPlayer")
+        if not music_player:
+            await inter.edit_original_response(content="Модуль MusicPlayer не загружен.")
+            return
+
         if действие == "Загнать":
-            # Очистка последних 10 сообщений, кроме закреплённых
+            # Очистка последних 5 сообщений, кроме закрепленных
+            text_channel = inter.channel
             if isinstance(text_channel, disnake.TextChannel):
                 try:
                     await text_channel.purge(limit=5, check=lambda m: not m.pinned)
                 except Exception:
                     pass  # Игнорируем ошибки очистки
 
-            # Если бот уже подключён — отключаемся
-            if inter.guild.voice_client:
-                try:
-                    await inter.guild.voice_client.disconnect()
-                except Exception:
-                    pass
-
-            # Подключаемся к голосовому каналу
-            try:
-                await voice_channel.connect()
-            except Exception as e:
-                await inter.edit_original_response(content=f"Ошибка подключения к голосовому каналу: {e}")
-                return
+            # Запускаем подключение и воспроизведение музыки асинхронно, не блокируя обработчик
+            self.bot.loop.create_task(music_player.connect_and_play())
 
             moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
 
             embed = disnake.Embed(
                 title="<:callcalling:1390972394268659753> Сержант подключился к сети",
                 description=(
-                    f"> Голосовая связь **установлена** по приказу: {inter.author.mention}. "
-                    f"Операция в полном разгаре, связь **стабильна** и под контролем штаба.\n\n"
+                    f"> Голосовая связь **установлена** по приказу: {inter.author.mention}.\n"
                     f"<:channel:1390972349385281630> **Сектор:** {self.channel_mention(voice_channel)}\n"
                     f"<:calendar:1390972430780203058> **Время подключения:** {moscow_time} по МСК"
                 ),
@@ -93,13 +85,12 @@ class VoiceControl(commands.Cog):
             )
             embed.set_image(url="attachment://vocast.png")
             embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
-
             await inter.edit_original_response(embed=embed, file=file)
 
         elif действие == "Выгнать":
-            if inter.guild.voice_client:
+            if music_player.voice_client:
                 try:
-                    await inter.guild.voice_client.disconnect()
+                    await music_player.force_disconnect()
                 except Exception as e:
                     await inter.edit_original_response(content=f"Ошибка при отключении от голосового канала: {e}")
                     return
@@ -109,8 +100,7 @@ class VoiceControl(commands.Cog):
                 embed = disnake.Embed(
                     title="<:callslash:1390972370508054578> Сержант покинул сектор",
                     description=(
-                        f"> Голосовая связь **разорвана** по приказу: {inter.author.mention}. "
-                        f"Линия молчит, миссия окончена. **Ожидаем** новых распоряжений штаба.\n\n"
+                        f"> Голосовая связь **разорвана** по приказу: {inter.author.mention}.\n"
                         f"<:channel:1390972349385281630> **Сектор:** {self.channel_mention(voice_channel)}\n"
                         f"<:calendar:1390972430780203058> **Время отключения:** {moscow_time} по МСК"
                     ),
@@ -118,7 +108,6 @@ class VoiceControl(commands.Cog):
                 )
                 embed.set_image(url="attachment://vocast.png")
                 embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
-
                 await inter.edit_original_response(embed=embed, file=file)
             else:
                 await inter.edit_original_response(content="Бот не подключён ни к одному голосовому каналу.")
