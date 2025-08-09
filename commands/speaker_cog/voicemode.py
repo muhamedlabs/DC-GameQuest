@@ -13,7 +13,7 @@ class VoiceControl(commands.Cog):
         return f"<#{ch.id}>" if ch else "—"
 
     @commands.slash_command(
-        name="voice",
+        name="bot_voice",
         description="Управление голосовой связью с сержантом",
         dm_permission=False,
         default_member_permissions=disnake.Permissions(manage_messages=True)
