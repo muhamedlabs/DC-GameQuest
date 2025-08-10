@@ -18,31 +18,64 @@ class VoiceAutoMover(commands.Cog):
         if member.bot:
             return
 
-        if not before.channel and after.channel and after.channel.id == SATDAT_VOICE_ID:
-            current_channel = after.channel
-            current_category = current_channel.category
-
-            if not current_category:
-                return
-
-            voice_channels = [ch for ch in current_category.voice_channels if ch.id != current_channel.id]
-            if not voice_channels:
-                return
-
+        async with RedisManager() as redis:
             user_key = [f"{member.id}"]
+            user_data = await redis.load(SatbatManager, user_key)
+            if not user_data:
+                user_data = SatbatManager(
+                    user_id=str(member.id),
+                    username=member.display_name,
+                    transition_random_voice=0,
+                    transitions_history={},
+                    last_transition_time=None,
+                    veto_join_time=None
+                )
 
-            async with RedisManager() as redis:
-                user_data = await redis.load(SatbatManager, user_key)
-                if not user_data:
-                    user_data = SatbatManager(
-                        user_id=str(member.id),
-                        username=member.display_name,
-                        transition_random_voice=0,
-                        transitions_history={},
-                        last_transition_time=None
-                    )
+            # Проверяем заход в вето-рум
+            if not before.channel and after.channel and after.channel.id == SATDAT_VOICE_ID:
+                # Пользователь зашёл в вето-рум, сохраняем время захода
+                now_msk = datetime.now(MSK)
+                user_data.veto_join_time = now_msk.isoformat()
+                await redis.save(user_data, user_key, ttl=timedelta(hours=24))
 
-                file = disnake.File(Selector_Image, filename="dial.png")    
+            # Проверяем покидание вето-рума - обнуляем время захода
+            elif before.channel and before.channel.id == SATDAT_VOICE_ID and (not after.channel or after.channel.id != SATDAT_VOICE_ID):
+                user_data.veto_join_time = None
+                await redis.save(user_data, user_key, ttl=timedelta(hours=24))
+
+            # Если пользователь всё ещё в вето-руме - проверяем время нахождения
+            elif after.channel and after.channel.id == SATDAT_VOICE_ID:
+                if user_data.veto_join_time:
+                    join_time = datetime.fromisoformat(user_data.veto_join_time)
+                    now_msk = datetime.now(MSK)
+                    time_in_veto = now_msk - join_time
+
+                    # Если в вето-руме больше 5 минут - кикаем
+                    if time_in_veto > timedelta(minutes=5):
+                        try:
+                            await member.move_to(None)  # Кик из голосового канала
+                        except disnake.Forbidden:
+                            pass
+                        except Exception:
+                            pass
+                        # Обнуляем время захода
+                        user_data.veto_join_time = None
+                        await redis.save(user_data, user_key, ttl=timedelta(hours=24))
+                        return
+
+            # Далее проверяем лимит перебросок
+            if not before.channel and after.channel and after.channel.id == SATDAT_VOICE_ID:
+                current_channel = after.channel
+                current_category = current_channel.category
+
+                if not current_category:
+                    return
+
+                voice_channels = [ch for ch in current_category.voice_channels if ch.id != current_channel.id]
+                if not voice_channels:
+                    return
+
+                file = disnake.File(Selector_Image, filename="dial.png")
 
                 if user_data.transition_random_voice >= 5:
                     if user_data.last_transition_time:
@@ -97,5 +130,6 @@ class VoiceAutoMover(commands.Cog):
                 user_data.transitions_history[key] = f"{new_channel.id} @ {now_msk}"
 
                 user_data.last_transition_time = now_msk
+                user_data.veto_join_time = None
 
                 await redis.save(user_data, user_key, ttl=timedelta(hours=24))

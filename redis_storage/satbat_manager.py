@@ -9,3 +9,4 @@ class SatbatManager(RecordBase):
     transition_random_voice: Optional[int] = 0
     transitions_history: Optional[Dict[str, str]] = field(default_factory=dict)
     last_transition_time: Optional[str] = None
+    veto_join_time: Optional[str] = None
