@@ -10,12 +10,8 @@ class Sync(commands.Cog):
         self.bot = bot
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
-    @commands.slash_command(
-        description="Передача файла UsersNotification.json на сервер",
-        dm_permission=False,
-        default_member_permissions=disnake.Permissions(manage_messages=True)
-    )
     async def data_users_notification(self, inter: disnake.ApplicationCommandInteraction):
+        """Передача файла UsersNotification.json на сервер"""
         # Проверка на доступ до выполнения
         has_access = (
             any(role.id in GROUP_ADMIN_ID for role in inter.author.roles)
@@ -46,3 +42,7 @@ class Sync(commands.Cog):
             json.dump(data, f, ensure_ascii=False, indent=4)
 
         await inter.edit_original_response(content="Задача выполнена! Файл UsersNotification.json готов к использованию")
+
+
+def setup(bot):
+    bot.add_cog(Sync(bot))
