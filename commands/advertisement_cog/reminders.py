@@ -72,7 +72,7 @@ class AutoPromo(commands.Cog):
                             "<:youtube:1390972086876377192> **YouTube:** https://www.youtube.com/@GameQuest_news\n"
                             "<:tg:1388590213567221801> **Telegram:** https://t.me/GameQuest_news\n"
                             "<:dc:1388590201349079050> **Discord:** https://discord.gg/GJUuPRbN5a\n"
-                            "<:vk:1390972535298068570> **ВКонтактe:** https://t.me/GameQuest_news"
+                            "<:vk:1390972535298068570> **ВКонтактe:** https://vk.com/GameQuest_news"
                         ),
                         color=self.embed_color
                     )
