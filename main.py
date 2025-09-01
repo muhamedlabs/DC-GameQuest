@@ -33,7 +33,7 @@ async def on_ready():
 # Загружаем коги
 bot.load_extension("commands.status_cog") # Папка статус для бота(Переменовать)
 
-bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
+#bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
 
 bot.load_extension("commands.design_cog") # Папка с дизайном профилей дискорда
 
