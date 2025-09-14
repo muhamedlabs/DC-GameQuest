@@ -1,13 +1,33 @@
 import disnake
 from disnake.ext import commands
 from datetime import datetime, timedelta
-from BANNED_FILES.config import Embed_Color, GROUP_ADMIN_ID, SPEAKER_VOICE_ID, Speechify_Image
-
+from BANNED_FILES.config import Embed_Color, GROUP_ADMIN_ID, Speechify_Image, RedisManager
+from redis_storage.speaker_voice import SpeakerVoice
+import os
 
 class VoiceControl(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
+
+    async def get_voice_channel(self, guild: disnake.Guild) -> disnake.VoiceChannel | None:
+        """Берём текущий канал из Redis по ключу 'random_channel' безопасно"""
+        async with RedisManager() as redis:
+            try:
+                record = await redis.load(SpeakerVoice, key="random_channel")
+            except Exception as e:
+                print(f"[VoiceControl] Ошибка при загрузке из Redis: {e}")
+                return None
+
+        if not record or not record.random_channel_id:
+            print("[VoiceControl] Голосовая рума не найдена в Redis")
+            return None
+
+        channel = guild.get_channel(int(record.random_channel_id))
+        if not isinstance(channel, disnake.VoiceChannel):
+            print("[VoiceControl] Канал в Redis не является голосовым")
+            return None
+        return channel
 
     def channel_mention(self, ch: disnake.abc.GuildChannel) -> str:
         return f"<#{ch.id}>" if ch else "—"
@@ -46,11 +66,9 @@ class VoiceControl(commands.Cog):
 
         await inter.response.defer(ephemeral=True)
 
-        voice_channel = inter.guild.get_channel(SPEAKER_VOICE_ID)
-        if not voice_channel or not isinstance(voice_channel, disnake.VoiceChannel):
-            await inter.edit_original_response(
-                content=f"Канал с ID `{SPEAKER_VOICE_ID}` не найден или это не голосовой канал!"
-            )
+        voice_channel = await self.get_voice_channel(inter.guild)
+        if not voice_channel:
+            await inter.edit_original_response(content="Голосовой канал не найден или не является голосовым!")
             return
 
         file = disnake.File(Speechify_Image, filename="vocast.png")
@@ -60,6 +78,8 @@ class VoiceControl(commands.Cog):
             await inter.edit_original_response(content="Модуль MusicPlayer не загружен.")
             return
 
+        moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
+
         if действие == "Загнать":
             # Очистка последних 5 сообщений, кроме закрепленных
             text_channel = inter.channel
@@ -67,12 +87,10 @@ class VoiceControl(commands.Cog):
                 try:
                     await text_channel.purge(limit=5, check=lambda m: not m.pinned)
                 except Exception:
-                    pass  # Игнорируем ошибки очистки
+                    pass
 
-            # Запускаем подключение и воспроизведение музыки асинхронно, не блокируя обработчик
+            # Подключаем бота к голосовому каналу асинхронно
             self.bot.loop.create_task(music_player.connect_and_play())
-
-            moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
 
             embed = disnake.Embed(
                 title="<:callcalling:1390972394268659753> Сержант подключился к сети",
@@ -95,8 +113,6 @@ class VoiceControl(commands.Cog):
                 except Exception as e:
                     await inter.edit_original_response(content=f"Ошибка при отключении от голосового канала: {e}")
                     return
-
-                moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
 
                 embed = disnake.Embed(
                     title="<:callslash:1390972370508054578> Сержант покинул сектор",

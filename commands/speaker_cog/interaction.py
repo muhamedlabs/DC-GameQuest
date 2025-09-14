@@ -3,8 +3,8 @@ import asyncio
 import disnake
 from disnake.ext import commands
 from disnake.errors import DiscordServerError, HTTPException
-from BANNED_FILES.config import SPEAKER_VOICE_ID, Music_Image, Embed_Color
-
+from BANNED_FILES.config import Music_Image, Embed_Color, RedisManager
+from redis_storage.speaker_voice import SpeakerVoice
 
 class MusicIntegration(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -13,14 +13,32 @@ class MusicIntegration(commands.Cog):
         self.embed_image_filename = os.path.basename(Music_Image)
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
+    async def get_voice_channel(self) -> disnake.abc.GuildChannel | None:
+        """Получаем текущую голосовую руму из Redis по ключу"""
+        async with RedisManager() as redis:
+            try:
+                record = await redis.load(SpeakerVoice, key="random_channel")
+            except Exception as e:
+                print(f"[MusicIntegration] Ошибка при загрузке из Redis: {e}")
+                return None
+
+        if not record or not record.random_channel_id:
+            print("[MusicIntegration] Голосовая рума не найдена в Redis")
+            return None
+
+        channel = self.bot.get_channel(int(record.random_channel_id))
+        if not isinstance(channel, disnake.VoiceChannel):
+            print("[MusicIntegration] Канал в Redis не является голосовым")
+            return None
+        return channel
+
     def _clean_track_name(self, track_name: str) -> str:
         """Удаляем расширение файла из названия трека"""
         return os.path.splitext(track_name)[0]
 
     async def send_or_update_message(self, track_name: str):
-        channel = self.bot.get_channel(SPEAKER_VOICE_ID)
+        channel = await self.get_voice_channel()
         if channel is None:
-            print("[MusicIntegration] Канал не найден")
             return
 
         clean_name = self._clean_track_name(track_name)
@@ -42,7 +60,7 @@ class MusicIntegration(commands.Cog):
                     self.message = await channel.send(embed=embed, file=file)
                 else:
                     await self.message.edit(embed=embed)
-                break  # успех
+                break
             except DiscordServerError as e:
                 if e.status == 503:
                     print(f"[MusicIntegration] Discord недоступен (503). Попытка {attempt} из {MAX_RETRIES}...")
