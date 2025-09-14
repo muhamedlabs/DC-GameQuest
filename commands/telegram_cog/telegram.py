@@ -10,7 +10,7 @@ from commands.telegram_cog.text_formatting import format_telegram_message
 from commands.telegram_cog.media_download import download_media
 from commands.telegram_cog.database_loading import RedisMessageMapper
 
-telegram_client = TelegramClient("telegram_session", api_id, api_hash)
+telegram_client = TelegramClient("telegram_session", api_id, api_hash, timeout=120)
 
 
 class TelegramBridge(commands.Cog):
