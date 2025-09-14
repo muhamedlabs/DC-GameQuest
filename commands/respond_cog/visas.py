@@ -21,6 +21,11 @@ class ResponseToCall(commands.Cog):
         """Запускаем инициализацию после загрузки COG"""
         self.bot.loop.create_task(self.initialize_bot_info())
 
+    def cog_unload(self):
+        """Корректно останавливаем таск при выгрузке COG"""
+        if self.update_ping_task.is_running():
+            self.update_ping_task.cancel()
+
     def get_moscow_time_str(self):
         """Возвращает московское время в формате DD.MM.YYYYг HHч MMм SSс"""
         now = datetime.utcnow() + timedelta(hours=3)
@@ -40,7 +45,7 @@ class ResponseToCall(commands.Cog):
                     latency=f"{round(self.bot.latency * 1000)} мс"
                 )
                 await redis.save(bot_record, key)
-                logger.info(f"Bot info обновлён в Redis: {bot_record}")
+                logger.info(f"Bot info обновлён в Redis: {asdict(bot_record)}")
 
     async def get_bot_info(self) -> BotInformation:
         """Получение информации о боте из Redis"""
@@ -57,7 +62,6 @@ class ResponseToCall(commands.Cog):
         """Отправка эмбеда с информацией о боте"""
         bot_info = await self.get_bot_info()
 
-        # Вычисляем uptime в формате дней, часов, минут, секунд
         start_time = datetime.strptime(bot_info.uptime_time, "%d.%m.%Yг %Hч %Mм %Sс")
         now = datetime.utcnow() + timedelta(hours=3)
         uptime = now - start_time
