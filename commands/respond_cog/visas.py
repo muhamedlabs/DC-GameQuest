@@ -32,7 +32,7 @@ class ResponseToCall(commands.Cog):
         return f"{now.day:02}.{now.month:02}.{now.year}г {now.hour:02}ч {now.minute:02}м {now.second:02}с"
 
     async def initialize_bot_info(self):
-        """Инициализация/обновление данных бота в Redis"""
+        """Инициализация данных бота в Redis (устанавливается только при старте)"""
         await self.bot.wait_until_ready()
         key = [str(self.bot.user.id)]
 
@@ -41,11 +41,11 @@ class ResponseToCall(commands.Cog):
                 bot_record = BotInformation(
                     bot_id=str(self.bot.user.id),
                     username=str(self.bot.user),
-                    uptime_time=self.get_moscow_time_str(),
+                    uptime_time=self.get_moscow_time_str(),  # фиксируется один раз
                     latency=f"{round(self.bot.latency * 1000)} мс"
                 )
                 await redis.save(bot_record, key)
-                logger.info(f"Bot info обновлён в Redis: {asdict(bot_record)}")
+                logger.info(f"Bot info инициализирован в Redis: {asdict(bot_record)}")
 
     async def get_bot_info(self) -> BotInformation:
         """Получение информации о боте из Redis"""
@@ -62,6 +62,7 @@ class ResponseToCall(commands.Cog):
         """Отправка эмбеда с информацией о боте"""
         bot_info = await self.get_bot_info()
 
+        # вычисляем аптайм относительно сохранённого времени старта
         start_time = datetime.strptime(bot_info.uptime_time, "%d.%m.%Yг %Hч %Mм %Sс")
         now = datetime.utcnow() + timedelta(hours=3)
         uptime = now - start_time
@@ -114,18 +115,18 @@ class ResponseToCall(commands.Cog):
             if ctx.command is None:
                 await self.gamequest_command(ctx)
 
-    @tasks.loop(hours=5)
+    @tasks.loop(minutes=15)
     async def update_ping_task(self):
-        """Обновляем пинг и московское время каждые 5 часов"""
+        """Обновляем только пинг каждые 15минут"""
         key = [str(self.bot.user.id)]
         bot_info = await self.get_bot_info()
+
+        # обновляем только latency
         bot_info.latency = f"{round(self.bot.latency * 1000)} мс"
-        bot_info.uptime_time = self.get_moscow_time_str()
 
         async with self.lock:
             async with RedisManager() as redis:
                 await redis.save(bot_info, key)
-        logger.info(f"Bot ping и время обновлены в Redis: {bot_info.latency}, {bot_info.uptime_time}")
 
     @update_ping_task.before_loop
     async def before_update_ping_task(self):
