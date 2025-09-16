@@ -33,11 +33,11 @@ async def on_ready():
 # Загружаем коги
 bot.load_extension("commands.status_cog") # Папка статус для бота(Переменовать)
 
-bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
+#bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
 
 bot.load_extension("commands.design_cog") # Папка с дизайном профилей дискорда
 
-bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
+#bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
 
 bot.load_extension("commands.advertisement_cog") # Папка с саморекламой от бота
 
@@ -68,6 +68,8 @@ bot.load_extension("commands.button_cog") # Папка с кнопками по 
 bot.load_extension("commands.broadcast_cog") # Папка с голосовыми командами под контролем бота
 
 bot.load_extension("commands.entertainment_cog") # Папка с контентом для досуга пользователей
+
+bot.load_extension("commands.alerts_cog") # Папка с оповещениями новостях от бота
 
 bot.load_extension("commands.test_cog") # Папка с тестами
 
