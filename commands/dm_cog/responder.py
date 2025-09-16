@@ -54,14 +54,14 @@ class DMResponder(commands.Cog):
                     embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
                     await message.channel.send(embed=embed, file=file)
 
-                    # Московское время в ISO формате
-                    now_msk = datetime.now(moscow_tz).isoformat()
+                    # Московское время в формате "DD.MM.YYYY HH:MM:SS"
+                    time_actions_commands = datetime.now(moscow_tz).strftime("%d.%m.%Y %H:%M:%S")
 
                     # Создаём новую запись с московским временем
                     entry = DMLogEntry(
                         user_id=user_id,
-                        username=f"{message.author.name}",
+                        username=str(message.author.name),
                         content=message.content,
-                        timestamp=now_msk
+                        timestamp=time_actions_commands
                     )
                     await self.redis.save(entry, user_id, ttl=timedelta(minutes=45))
