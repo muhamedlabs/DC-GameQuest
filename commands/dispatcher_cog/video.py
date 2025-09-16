@@ -65,8 +65,13 @@ class VideoIntegration(commands.Cog):
             color=self.embed_color
         )
         embed.set_image(url=preview_url)
-        embed.add_field(name="<:youtube:1390972086876377192> YouTube:", value=youtube_link, inline=False)
-        embed.add_field(name="<:vk:1390972535298068570> VKontakte:", value=vk_link, inline=False)
+
+        # Добавляем поля только если ссылки не пустые
+        if youtube_link.strip():
+            embed.add_field(name="<:youtube:1390972086876377192> YouTube:", value=youtube_link, inline=False)
+        if vk_link.strip():
+            embed.add_field(name="<:vk:1390972535298068570> VKontakte:", value=vk_link, inline=False)
+
         embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
 
         # Отправка
