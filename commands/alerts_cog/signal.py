@@ -32,7 +32,7 @@ class SignalSubscription(commands.Cog):
             existing: UsersSubscriptions = await redis.load(UsersSubscriptions, key)
 
             # Пользователь уже подписан
-            if existing and existing.subscription == "Подписан" and subscribe:
+            if existing and existing.subscription == "On" and subscribe:
                 return "already_subscribed"
 
             number_canceled = (
@@ -46,7 +46,7 @@ class SignalSubscription(commands.Cog):
             record = UsersSubscriptions(
                 user_id=str(user.id),
                 username=str(user),
-                subscription="Подписан" if subscribe else "Отписан",
+                subscription="On" if subscribe else "Off",  # Теперь On/Off
                 time_actions_commands=time_actions_commands,
                 number_canceled_subscriptions=number_canceled
             )
@@ -71,7 +71,7 @@ class SignalSubscription(commands.Cog):
             async with RedisManager() as redis:
                 existing: UsersSubscriptions = await redis.load(UsersSubscriptions, key)
 
-            if not existing or existing.subscription != "Подписан":
+            if not existing or existing.subscription != "On":
                 can_dm = await self.can_send_dm(inter.author)
                 if not can_dm:
                     embed = disnake.Embed(
@@ -92,13 +92,13 @@ class SignalSubscription(commands.Cog):
             )
         elif status == "subscribed":
             embed = disnake.Embed(
-                title="📡 Подписка оформлена!",
+                title="📡 Подписка оформлена! (On)",
                 description="Теперь бот будет присылать вам важные уведомления прямо в личные сообщения.",
                 color=self.embed_color
             )
         else:  # unsubscribed
             embed = disnake.Embed(
-                title="🔕 Вы отписались",
+                title="🔕 Вы отписались (Off)",
                 description="Бот больше не будет присылать сигналы.\nРекомендуем подписаться, чтобы быть в курсе всех новостей!",
                 color=self.embed_color
             )
