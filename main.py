@@ -18,8 +18,11 @@ intents.presences = True
 intents.voice_states = True
 intents.guilds = True
 
+# Определяем guilds_for_testing только если есть DISCORD_ID
+guilds_for_testing = [DISCORD_ID] if DISCORD_ID else None
+
 # Инициализация бота
-bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, test_guilds=[DISCORD_ID])
+bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, test_guilds=guilds_for_testing)
 
 bot.start_time = datetime.datetime.utcnow()
 
@@ -33,11 +36,11 @@ async def on_ready():
 # Загружаем коги
 bot.load_extension("commands.status_cog") # Папка статус для бота(Переменовать)
 
-#bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
+bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
 
 bot.load_extension("commands.design_cog") # Папка с дизайном профилей дискорда
 
-#bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
+bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
 
 bot.load_extension("commands.advertisement_cog") # Папка с саморекламой от бота
 
