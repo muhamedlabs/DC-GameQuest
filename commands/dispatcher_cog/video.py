@@ -10,7 +10,7 @@ class VideoIntegration(commands.Cog):
         self.static_header: str = Video_Text
 
     @commands.slash_command(
-        name="видео",
+        name="video",
         description="Отправить интеграцию в youtube-дайджесты",
         dm_permission=False,
         default_member_permissions=disnake.Permissions(manage_messages=True)
