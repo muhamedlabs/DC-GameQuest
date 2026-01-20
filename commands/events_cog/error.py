@@ -1,4 +1,4 @@
-import sys
+import sys 
 import asyncio
 import disnake
 from disnake.ext import commands
@@ -19,6 +19,7 @@ class StreamDuplicator:
         self.webhook = None
         self.bot_avatar: bytes = b""
         self.skip_lines = 2
+        self.last_message = None  # Для проверки повторов
 
     def start(self):
         sys.stdout = self
@@ -93,6 +94,15 @@ class StreamDuplicator:
         return None
 
     async def send_to_discord(self, text):
+        text = text.strip()
+        if not text:
+            return
+
+        # ❌ Если текст совпадает с предыдущим, не отправляем
+        if text == self.last_message:
+            return
+        self.last_message = text
+
         try:
             await self.bot.wait_until_ready()
             webhook = await self.ensure_webhook()
@@ -130,3 +140,4 @@ class ErrorLogger(commands.Cog):
 
     def cog_unload(self):
         self.stream_duplicator.stop()
+
