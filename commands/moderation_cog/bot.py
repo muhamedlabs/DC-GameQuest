@@ -28,11 +28,11 @@ class BotBan(commands.Cog):
         if message.author.id in self.blacklist:
             try:
                 await message.delete()
-                print(f"[⚠️] Сообщение от {message.author} ликвидировано. Десантник в чёрном списке.")
+                print(f"Сообщение от {message.author} ликвидировано. Десантник в чёрном списке.")
             except disnake.Forbidden:
-                print("[❌] Нет прав на удаление сообщения.")
+                print("Нет прав на удаление сообщения.")
             except Exception as e:
-                print(f"[❌] Ошибка удаления сообщения: {e}")
+                print(f"Ошибка удаления сообщения: {e}")
 
     # Блокировка команд у забаненных
     @commands.Cog.listener()
@@ -62,14 +62,14 @@ class BotBan(commands.Cog):
             self.blacklist.add(user.id)
             save_ban_list(self.blacklist)
             await inter.response.send_message(
-                f"🚫 {тип.capitalize()} {user.mention} добавлен в чёрный список штаба.",
+                f"{тип.capitalize()} {user.mention} добавлен в чёрный список штаба.",
                 ephemeral=True
             )
         else:
             self.blacklist.discard(user.id)
             save_ban_list(self.blacklist)
             await inter.response.send_message(
-                f"✅ {тип.capitalize()} {user.mention} удалён из чёрного списка. Допуск восстановлен.",
+                f"{тип.capitalize()} {user.mention} удалён из чёрного списка. Допуск восстановлен.",
                 ephemeral=True
             )
 
