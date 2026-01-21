@@ -38,10 +38,8 @@ class RoomSelector(commands.Cog):
 
         # Если бот в голосовом канале — ждем 25 секунд перед отключением
         if voice_client and voice_client.is_connected():
-            print(f"[RoomSelector] Бот сейчас в канале {voice_client.channel.name}, отключаем через 25 секунд...")
             await asyncio.sleep(25)
             await voice_client.disconnect()
-            print(f"[RoomSelector] Бот отключен от канала {voice_client.channel.name}")
 
     async def get_current_channel(self) -> Optional[str]:
         async with RedisManager() as redis:
