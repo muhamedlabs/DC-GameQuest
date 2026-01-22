@@ -17,3 +17,5 @@ aiosqlite~=0.18.0
 psutil>=5.9.0
 
 ashredis==1.2.5
+
+pillow==10.2.0
