@@ -5,6 +5,7 @@ from BANNED_FILES.config import SPEAKER_CATEGORY_ID, RedisManager
 from redis_storage.speaker_voice import SpeakerVoice
 import asyncio
 
+
 class RoomSelector(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -14,29 +15,53 @@ class RoomSelector(commands.Cog):
     async def daily_channel_change(self):
         guild = self.bot.guilds[0]
         category = guild.get_channel(SPEAKER_CATEGORY_ID)
+
         if not category or not category.voice_channels:
             print("[RoomSelector] В категории нет голосовых каналов")
             return
 
-        # Выбираем новый случайный канал и сохраняем в Redis
-        selected_channel = random.choice(category.voice_channels)
-        record = SpeakerVoice(session_id="default", random_channel_id=str(selected_channel.id))
+        # ─── получаем прошлый канал из Redis ───
+        async with RedisManager() as redis:
+            previous_record = await redis.load(SpeakerVoice, key="random_channel")
 
+        previous_channel_id = (
+            int(previous_record.random_channel_id)
+            if previous_record and previous_record.random_channel_id
+            else None
+        )
+
+        # ─── фильтруем список каналов ───
+        available_channels = [
+            vc for vc in category.voice_channels
+            if vc.id != previous_channel_id
+        ]
+
+        if not available_channels:
+            print("[RoomSelector] Нет доступных каналов для выбора (все совпадают с предыдущим)")
+            return
+
+        # ─── выбираем новый канал ───
+        selected_channel = random.choice(available_channels)
+
+        record = SpeakerVoice(
+            session_id="default",
+            random_channel_id=str(selected_channel.id)
+        )
+
+        # ─── сохраняем в Redis ───
         async with RedisManager() as redis:
             try:
                 await redis.save(record, key="random_channel")
             except Exception as e:
                 print(f"[RoomSelector] Ошибка сохранения в Redis: {e}")
 
-        # Проверяем, где сейчас бот
-        voice_client = None
-        for vc in guild.voice_channels:
-            if self.bot.user in vc.members:
-                # Находим голосовой клиент бота
-                voice_client = next((v for v in self.bot.voice_clients if v.guild == guild), None)
-                break
+        # ─── проверяем, где сейчас бот ───
+        voice_client = next(
+            (v for v in self.bot.voice_clients if v.guild == guild),
+            None
+        )
 
-        # Если бот в голосовом канале — ждем 25 секунд перед отключением
+        # ─── если бот в войсе — отключаемся через 25 сек ───
         if voice_client and voice_client.is_connected():
             await asyncio.sleep(25)
             await voice_client.disconnect()
