@@ -10,7 +10,7 @@ class CleanCommand(commands.Cog):
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
     @commands.command(name="зачистка", help="Зачистка канала связи")
-    @commands.has_permissions(manage_messages=True)
+
     async def purge_channel(self, ctx: commands.Context):
         if ctx.author.id not in ALLOWED_USER_IDS:
             return

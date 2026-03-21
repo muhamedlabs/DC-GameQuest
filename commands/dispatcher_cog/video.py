@@ -16,10 +16,12 @@ class VideoIntegration(commands.Cog):
 
     @commands.slash_command(
         name="video",
-        description="Отправить интеграцию в youtube-дайджесты",
-        dm_permission=False,
-        default_member_permissions=disnake.Permissions(manage_messages=True)
+        description="Отправить интеграцию в youtube-дайджесты"
     )
+
+    @commands.contexts(bot_dm=False,  guild=True)
+    @commands.default_member_permissions(manage_messages=True, moderate_members=True, administrator=True)
+
     async def send_video_integration(
         self,
         inter: disnake.ApplicationCommandInteraction,

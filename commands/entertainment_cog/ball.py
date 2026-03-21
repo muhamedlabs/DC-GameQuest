@@ -38,9 +38,9 @@ class WarBall(commands.Cog):
 
     @commands.slash_command(
         name="шар",
-        description="Тактический прогноз от командного ИИ",
-        dm_permission=False
+        description="Тактический прогноз от командного ИИ"
     )
+
     async def warball(
         self,
         inter: disnake.ApplicationCommandInteraction,

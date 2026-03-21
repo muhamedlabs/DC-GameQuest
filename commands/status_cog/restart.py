@@ -10,10 +10,11 @@ class ReloadAllCog(commands.Cog):
 
     @commands.slash_command(
         name="bot_restart",
-        description="Обновление конфигурации сержанта",
-        dm_permission=False,
-        default_member_permissions=disnake.Permissions(manage_guild=True)
+        description="Обновление конфигурации сержанта"
     )
+    @commands.contexts(bot_dm=False,  guild=True)
+    @commands.default_member_permissions(moderate_members=True, administrator=True)
+
     async def reload_all(self, inter: disnake.AppCmdInter):
         # Проверка доступа
         has_access = (

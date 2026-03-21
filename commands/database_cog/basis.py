@@ -9,10 +9,9 @@ class UniversalCommands(commands.Cog):
         
         # Словарь доступных функций из других Cog'ов
         self.available_functions = {
-            "data_users_notification": "Sync",  # Имя Cog, где находится функция
+            "data_users_notification": "Sync",
             "sync_data": "Sync",
-            "backup_users": "Sync",
-            # Добавляйте сюда новые функции: "function_name": "CogName"
+            "backup_users": "Sync"
         }
     
     def check_permissions(self, inter):
@@ -24,10 +23,12 @@ class UniversalCommands(commands.Cog):
         )
     
     @commands.slash_command(
-        description="Универсальная команда для выполнения различных функций",
-        dm_permission=False,
-        default_member_permissions=disnake.Permissions(manage_messages=True)
+        description="Универсальная команда для выполнения различных функций"
     )
+
+    @commands.contexts(bot_dm=False,  guild=True)
+    @commands.default_member_permissions(moderate_members=True, administrator=True)
+    
     async def execute(
         self, 
         inter: disnake.ApplicationCommandInteraction,

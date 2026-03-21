@@ -11,9 +11,7 @@ class Unsplash(commands.Cog):
 
     @commands.slash_command(
         name="разведданные",
-        description="Визуальные данные с разведсервиса Unsplash",
-        dm_permission=False,
-        default_member_permissions=disnake.Permissions(send_messages=True)
+        description="Визуальные данные с разведсервиса Unsplash"
     )
     async def unsplash_image(
         self,

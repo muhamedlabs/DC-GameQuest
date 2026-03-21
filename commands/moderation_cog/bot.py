@@ -47,9 +47,11 @@ class BotBan(commands.Cog):
     # Slash-команда управления баном
     @commands.slash_command(
         name="ботбан",
-        description="⚔️ Управление чёрным списком штаба (бан / разбан)",
-        default_member_permissions=disnake.Permissions(administrator=True)
+        description="⚔️ Управление чёрным списком штаба (бан / разбан)"
     )
+    @commands.contexts(bot_dm=False,  guild=True)
+    @commands.default_member_permissions(moderate_members=True, administrator=True)
+    
     async def botban(
         self,
         inter: disnake.ApplicationCommandInteraction,

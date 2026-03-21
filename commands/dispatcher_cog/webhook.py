@@ -110,9 +110,12 @@ class WebhookFromDiscord(commands.Cog):
 
     @commands.slash_command(
         name="webhook",
-        description="Бот отправляет сообщение по Discohook JSON из Discord",
-        default_member_permissions=disnake.Permissions(manage_messages=True)
+        description="Бот отправляет сообщение по Discohook JSON из Discord"
     )
+
+    @commands.contexts(bot_dm=False,  guild=True)
+    @commands.default_member_permissions(moderate_members=True, administrator=True)
+
     async def send_from_message(
         self,
         inter: disnake.ApplicationCommandInteraction,

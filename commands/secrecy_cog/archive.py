@@ -18,7 +18,7 @@ class AdsCommand(commands.Cog):
             pass
 
     @commands.command(name="Ads", help="Передача засекреченной документации")
-    @commands.has_permissions(send_messages=True)
+
     async def send_ads(self, ctx: commands.Context, code: str):
         # Ограничение по ID пользователя
         if ctx.author.id not in ALLOWED_USER_IDS:
