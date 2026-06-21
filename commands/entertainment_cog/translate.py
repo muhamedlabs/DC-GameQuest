@@ -18,34 +18,59 @@ class Translator(commands.Cog):
         self.bot = bot
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
-    @commands.slash_command(name="интерпретация", description="Дешифровка перехваченного сообщения")
+    @commands.slash_command(
+        name="интерпретация",
+        description="Дешифровка перехваченного сообщения"
+    )
     async def translate(
         self,
         inter: ApplicationCommandInteraction,
-        text: str = commands.Param(name="текст", description="Перехваченный фрагмент для перевода"),
+        text: str = commands.Param(
+            name="текст",
+            description="Перехваченный фрагмент для перевода"
+        ),
         язык: str = commands.Param(
             name="язык",
             choices=list(LANG_CODES.keys()),
-            description="Язык, на который необходимо выполнить дешифровку"
+            description="Язык для перевода"
         )
     ):
         await inter.response.defer()
 
         lang_code = LANG_CODES[язык]
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                DEEPL_API_URL,
-                data={
-                    "auth_key": deepl_developer,
-                    "text": text,
-                    "target_lang": lang_code
-                }
-            ) as response:
-                result = await response.json()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    DEEPL_API_URL,
+                    headers={
+                        "Authorization": f"DeepL-Auth-Key {deepl_developer}"
+                    },
+                    data={
+                        "text": text,
+                        "target_lang": lang_code
+                    }
+                ) as response:
 
-        if "translations" not in result:
-            await inter.edit_original_response("Не удалось установить связь с дешифровочным центром")
+                    if response.status != 200:
+                        error_text = await response.text()
+                        await inter.edit_original_response(
+                            content=f"Ошибка API ({response.status})\n```{error_text}```"
+                        )
+                        return
+
+                    result = await response.json()
+
+        except Exception as e:
+            await inter.edit_original_response(
+                content=f"Сбой соединения с дешифровочным центром\n```{e}```"
+            )
+            return
+
+        if "translations" not in result or not result["translations"]:
+            await inter.edit_original_response(
+                content=f"Некорректный ответ от API\n```{result}```"
+            )
             return
 
         translated_text = result["translations"][0]["text"]
@@ -53,15 +78,28 @@ class Translator(commands.Cog):
         embed = disnake.Embed(
             title="<:languagesquare:1401982335624155208> Узел расшифровки сообщений",
             description=(
-                f"> Шифровка **успешно** обработана. Перевод направлен в штаб. Использован **протокол** дешифровки — `{язык.upper()}`"
+                f"> Шифровка **успешно** обработана. Перевод направлен в штаб. "
+                f"Использован **протокол** дешифровки — `{язык.upper()}`"
             ),
             color=self.embed_color
         )
 
-        embed.add_field(name="<:messageminus:1401982354138071072> Исходное сообщение:", value=f"```{text}```", inline=False)
-        embed.add_field(name="<:messageedit:1401982365097656411> Результат декодирования:", value=f"```{translated_text}```", inline=False)
+        embed.add_field(
+            name="<:messageminus:1401982354138071072> Исходное сообщение:",
+            value=f"```{text}```",
+            inline=False
+        )
 
-        file = disnake.File(Interpreter_Gif, filename=os.path.basename(Interpreter_Gif))
+        embed.add_field(
+            name="<:messageedit:1401982365097656411> Результат декодирования:",
+            value=f"```{translated_text}```",
+            inline=False
+        )
+
+        file = disnake.File(
+            Interpreter_Gif,
+            filename=os.path.basename(Interpreter_Gif)
+        )
         embed.set_image(url=f"attachment://{os.path.basename(Interpreter_Gif)}")
 
         await inter.edit_original_response(embed=embed, file=file)
