@@ -1,0 +1,9 @@
+import disnake
+from datetime import datetime, timedelta
+from BANNED_FILES.config import Time_interval
+
+
+moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+kyiv_time = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+
+time = (datetime.utcnow() + timedelta(hours=Time_interval)).strftime("%Y-%m-%d %H:%M:%S")
