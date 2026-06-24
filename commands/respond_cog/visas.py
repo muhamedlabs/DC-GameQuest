@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 import logging
 from dataclasses import asdict
 
-from BANNED_FILES.config import Embed_Color, ALLOWED_USER_IDS, RedisManager
+from BANNED_FILES.config import Embed_Color, ALLOWED_USER_IDS, RedisManager, Time_interval
+from commands.information_cog.time import hours_time
 from redis_storage.bot_information import BotInformation
 
 logger = logging.getLogger(__name__)
@@ -26,11 +27,6 @@ class ResponseToCall(commands.Cog):
         if self.update_ping_task.is_running():
             self.update_ping_task.cancel()
 
-    def get_moscow_time_str(self):
-        """Возвращает московское время в формате DD.MM.YYYYг HHч MMм SSс"""
-        now = datetime.utcnow() + timedelta(hours=3)
-        return f"{now.day:02}.{now.month:02}.{now.year}г {now.hour:02}ч {now.minute:02}м {now.second:02}с"
-
     async def initialize_bot_info(self):
         """Инициализация данных бота в Redis (устанавливается только при старте)"""
         await self.bot.wait_until_ready()
@@ -41,7 +37,7 @@ class ResponseToCall(commands.Cog):
                 bot_record = BotInformation(
                     bot_id=str(self.bot.user.id),
                     username=str(self.bot.user),
-                    uptime_time=self.get_moscow_time_str(),  # фиксируется один раз
+                    uptime_time=hours_time,  # фиксируется один раз
                     latency=f"{round(self.bot.latency * 1000)} мс"
                 )
                 await redis.save(bot_record, key)
@@ -63,8 +59,8 @@ class ResponseToCall(commands.Cog):
         bot_info = await self.get_bot_info()
 
         # вычисляем аптайм относительно сохранённого времени старта
-        start_time = datetime.strptime(bot_info.uptime_time, "%d.%m.%Yг %Hч %Mм %Sс")
-        now = datetime.utcnow() + timedelta(hours=3)
+        start_time = datetime.strptime(bot_info.uptime_time, "%d.%m.%Y %H:%M:%S")
+        now = datetime.utcnow() + timedelta(hours=Time_interval)
         uptime = now - start_time
         days = uptime.days
         hours, remainder = divmod(uptime.seconds, 3600)
