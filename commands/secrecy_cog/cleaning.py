@@ -3,7 +3,7 @@ from disnake.ext import commands
 import asyncio
 import datetime
 from disnake.errors import NotFound, Forbidden
-from commands.information_cog.time import time
+from commands.information_cog.time import hours_time
 from commands.information_cog.warnings import no_access_embed
 from BANNED_FILES.config import Embed_Color, Message_Cleaning, ALLOWED_USER_IDS
 
@@ -78,7 +78,7 @@ class CleanCommand(commands.Cog):
                 description=(
                     f"Согласно оперативному распоряжению командования, проведена полная нейтрализация информационного шума.\n\n"
                     f"<:trash:1487340036453171270> **Удалено сообщений в канале:**\n ```{deleted_count}```\n"
-                    f"<:calendar:1390972430780203058> **Время доклада:** {time} по МСК"
+                    f"<:calendar:1390972430780203058> **Время доклада:** {hours_time} по МСК"
                 ),
                 color=self.embed_color
             )
