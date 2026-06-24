@@ -1,8 +1,8 @@
 import disnake
 from disnake.ext import commands
 import asyncio
-from datetime import datetime, timedelta
 from BANNED_FILES.config import Embed_Color, Comments_Gif, RedisManager
+from commands.information_cog.time import hours_time
 from redis_storage.users_notification import UsersNotification
 import os
 
@@ -18,7 +18,7 @@ class FirstNotifier(commands.Cog):
             return
 
         user_id = str(message.author.id)
-        key = [user_id]  # Ключ в ashredis — список значений
+        key = [user_id]
 
         async with self.lock:
             async with RedisManager() as redis:
@@ -30,12 +30,10 @@ class FirstNotifier(commands.Cog):
                 display_name = member.display_name if member else str(message.author)
                 username = str(message.author)
 
-                moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S по МСК")
-
                 user_record = UsersNotification(
                     user_id=user_id,
                     username=username,
-                    first_message_time=moscow_time,
+                    first_message_time=hours_time,
                     first_message_content=message.content
                 )
 
@@ -50,7 +48,7 @@ class FirstNotifier(commands.Cog):
                 f"<:tg:1388590213567221801> **Telegram:** https://t.me/GameQuest_news\n"
                 f"<:dc:1388590201349079050> **Discord:** https://discord.gg/GJUuPRbN5a\n"
                 f"<:vk:1390972535298068570> **ВКонтакте:** https://vk.com/GameQuest_news\n\n"
-                f"<:calendar:1390972430780203058> **Время регистрации:** {moscow_time}\n"
+                f"<:calendar:1390972430780203058> **Время регистрации:** {hours_time}\n"
             ),
             color=self.embed_color
         )

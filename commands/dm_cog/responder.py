@@ -1,11 +1,9 @@
 import disnake
 from disnake.ext import commands
 from BANNED_FILES.config import Community_Image, Embed_Color, RedisManager
-from datetime import datetime, timedelta
+from commands.information_cog.time import hours_time
+from datetime import timedelta
 from redis_storage.dm_message import DMLogEntry
-from pytz import timezone
-
-moscow_tz = timezone("Europe/Moscow")
 
 class DMResponder(commands.Cog):
     def __init__(self, bot):
@@ -25,7 +23,6 @@ class DMResponder(commands.Cog):
                 entry = await self.redis.load(DMLogEntry, user_id)
 
                 if not entry:
-                    # Отправляем ответ
                     file = disnake.File(Community_Image, filename="community.png")
                     embed = disnake.Embed(
                         title="<:aicomment:1390972485410881588> Штабное сообщение от сержанта",
@@ -54,14 +51,10 @@ class DMResponder(commands.Cog):
                     embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
                     await message.channel.send(embed=embed, file=file)
 
-                    # Московское время в формате "DD.MM.YYYY HH:MM:SS"
-                    time_actions_commands = datetime.now(moscow_tz).strftime("%d.%m.%Y %H:%M:%S")
-
-                    # Создаём новую запись с московским временем
                     entry = DMLogEntry(
                         user_id=user_id,
                         username=str(message.author.name),
                         content=message.content,
-                        timestamp=time_actions_commands
+                        timestamp=hours_time
                     )
                     await self.redis.save(entry, user_id, ttl=timedelta(minutes=45))
