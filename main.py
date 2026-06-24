@@ -1,11 +1,11 @@
 import disnake
 import os
 import datetime
+import warnings
 import ashredis 
 from dotenv import load_dotenv
 from disnake.ext import commands
-from BANNED_FILES.config import discord_bot, DISCORD_ID
-
+from BANNED_FILES.config import discord_bot, DISCORD_ID, DISCORD_ERROR
 # Загрузка переменных окружения
 load_dotenv()
 
@@ -18,13 +18,13 @@ intents.presences = True
 intents.voice_states = True
 intents.guilds = True
 
-# Определяем guilds_for_testing только если есть DISCORD_ID
-guilds_for_testing = [DISCORD_ID] if DISCORD_ID else None
+# Определяем TESTING  если есть хотя б одина гильдия
+TESTING = [g for g in [DISCORD_ID, DISCORD_ERROR] if g] or None
 
 # Инициализация бота
-bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, test_guilds=guilds_for_testing)
+bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, test_guilds=TESTING)
 
-bot.start_time = datetime.datetime.utcnow()
+bot.start_time = datetime.datetime.now(datetime.timezone.utc)
 
 # Событие при запуске
 @bot.event
@@ -32,15 +32,14 @@ async def on_ready():
     print(f"Bot {bot.user} is up and running!")
 
 
-
 # Загружаем коги
 bot.load_extension("commands.status_cog") # Папка статус для бота(Переменовать)
 
-bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
+#bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
 
 bot.load_extension("commands.design_cog") # Папка с дизайном профилей дискорда
 
-bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
+#bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
 
 bot.load_extension("commands.advertisement_cog") # Папка с саморекламой от бота
 
