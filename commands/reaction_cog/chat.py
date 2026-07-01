@@ -2,7 +2,7 @@ import disnake
 from disnake.ext import commands
 import random
 
-from BANNED_FILES.config import CHAT_CHANNEL_ID, Probability_Reaction, CHAT_Reaction
+from BANNED_FILES.config import CHAT_CHANNEL_ID, Probability_Reaction, Chat_Reaction
 
 class RandomReactor(commands.Cog):
     def __init__(self, bot):
@@ -20,7 +20,7 @@ class RandomReactor(commands.Cog):
 
         if random.randint(1, 100) <= Probability_Reaction:
             try:
-                emoji_id = random.choice(CHAT_Reaction)
+                emoji_id = random.choice(Chat_Reaction)
                 emoji = self.bot.get_emoji(emoji_id)
                 if emoji is None:
                     print(f"Эмодзи с ID {emoji_id} не найден в кэше бота")
