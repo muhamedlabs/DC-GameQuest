@@ -3,6 +3,8 @@ import disnake
 from disnake.ext import commands
 
 from BANNED_FILES.config import Cybersecurity_Image, Embed_Color, GROUP_MODER_IDS, BLOCK_MESSAGE, BLOCK_MESSAGE_TOXIS, BLOCK_MESSAGE_LINKS, BLOCK_MESSAGE_SCAM, BLOCK_MESSAGE_SPAM, RULE_PREFIX, TOXIC_WORDS, LINK_FILTER, SCAM_WORDS, SPAM_WORDS
+from commands.information_cog.warnings import no_access_embed
+
 
 RULE_DEFINITIONS = {
     "threats": f"{RULE_PREFIX} • Анализ угроз",
@@ -136,6 +138,7 @@ class AutoMod(commands.Cog):
     )
     @commands.contexts(bot_dm=False, guild=True)
     @commands.default_member_permissions(manage_messages=True, moderate_members=True, administrator=True)
+    
     @has_automod_role()
     async def automod(
         self,
@@ -159,7 +162,7 @@ class AutoMod(commands.Cog):
                     rules=rules,
                     title="<:security:1522868634941390960> Оборонительный контур уже развернут",
                     description_header=(
-                        "Система безопасности уже находится в режиме полной боевой готовности и непрерывного мониторинга всех критических процессов. Повторная активация не требуется, поскольку текущий протокол защиты уже запущен и функционирует."
+                        ">>> Система безопасности **уже находится** в режиме полной боевой готовности и непрерывного мониторинга всех критических процессов. Повторная активация не требуется, поскольку текущий **протокол защиты** уже запущен и функционирует."
                     ),
                 )
                 return await self._send(inter, embed, file)
@@ -170,7 +173,7 @@ class AutoMod(commands.Cog):
             embed, file = self._build_status_embed(
                 rules=rules,
                 title="<:shieldtick:1387113358389547138> Оборонительный контур активирован",
-                description_header="Центральный командный узел обработал поступивший запрос в полном объёме, выполнил многоуровневую проверку входящих данных, сопоставил результаты с актуальными протоколами безопасности.",
+                description_header=">>> Центральный командный **узел обработал** поступивший запрос в полном объёме, выполнил многоуровневую проверку входящих данных, **сопоставил** результаты с актуальными протоколами безопасности.",
             )
             return await self._send(inter, embed, file)
 
@@ -181,7 +184,7 @@ class AutoMod(commands.Cog):
                 await rule.delete()
                 deleted += 1
 
-        deactivated_lines = ["Центральный командный узел завершил комплексную диагностику всего контура системы безопасности, включая анализ стабильности протоколов защиты, проверку состояния активных модулей мониторинга.\n"]
+        deactivated_lines = [">>> Центральный командный **узел завершил** комплексную диагностику всего контура системы безопасности, включая анализ стабильности протоколов защиты, **проверку** состояния активных модулей мониторинга.\n"]
         deactivated_lines.append("**Компоненты оборонного комплекса:**")
         for label in RULE_LABELS.values():
             deactivated_lines.append(f"<:settings:1522866360567337010> {label}")
@@ -196,8 +199,14 @@ class AutoMod(commands.Cog):
 
     @automod.error
     async def automod_error(self, inter: disnake.ApplicationCommandInteraction, error: Exception):
+
+        owner = inter.guild.owner.mention if inter.guild and inter.guild.owner else "Не назначен"
+
         if isinstance(error, commands.CheckFailure):
-            await inter.response.send_message(
-                "You don't have the required role to use this command.",
-                ephemeral=True,
-            )
+
+            embed = no_access_embed(self.embed_color, owner)
+
+            if inter.response.is_done():
+                await inter.followup.send(embed=embed, ephemeral=True)
+            else:
+                await inter.response.send_message(embed=embed, ephemeral=True)
