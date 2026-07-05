@@ -8,8 +8,8 @@ from datetime import datetime, timezone, timedelta
 
 from BANNED_FILES.config import GROUP_MODER_IDS, RedisManager
 from redis_storage.dispatcher_message import DispatcherMessage
+from commands.information_cog.time import hours_time
 
-MSK = timezone(timedelta(hours=3))
 message_lifetime = timedelta(hours=48)
 
 class WebhookFromDiscord(commands.Cog):
@@ -156,7 +156,7 @@ class WebhookFromDiscord(commands.Cog):
                 channel_id=str(target_channel.id),
                 user_id=str(inter.author.id),
                 username=inter.author.name,
-                timestamp=datetime.now(MSK).strftime("%d.%m.%Y %H:%M:%S")
+                timestamp=hours_time
             )
 
             async with RedisManager() as redis:
