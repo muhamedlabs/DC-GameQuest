@@ -73,3 +73,16 @@ def invalid_input_embed(color, admins_mentions):
         ),
         color=color,
     )
+
+
+# Не правильная информация для чего-то не найдена
+def record_not_found_embed(color, admins_mentions):
+    return disnake.Embed(
+        title="<:globaledit:1524475135073976351> Информацию необходимо отредактировать",
+        description=(
+            "Запись с таким ID **не найдена** либо истёк срок её хранения. "
+            "Повторите ввод данных заново.\n\n"
+            f">>> Если вы считаете, что это ошибка — свяжитесь с инженерным подразделением: {admins_mentions}"
+        ),
+        color=color,
+    )
