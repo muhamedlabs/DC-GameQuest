@@ -6,6 +6,7 @@ import ashredis
 from dotenv import load_dotenv
 from disnake.ext import commands
 from BANNED_FILES.config import discord_bot, DISCORD_ID, DISCORD_ERROR
+
 # Загрузка переменных окружения
 load_dotenv()
 
