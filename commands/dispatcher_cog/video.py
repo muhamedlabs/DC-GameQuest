@@ -1,20 +1,48 @@
-import re
 import disnake
 from disnake.ext import commands
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
+from urllib.parse import urlparse
 
-from BANNED_FILES.config import Embed_Color, Video_Text, VIDEO_CHANNEL_ID, GROUP_MODER_IDS, RedisManager
-from commands.information_cog.warnings import security_block_embed
+from BANNED_FILES.config import Embed_Color, Video_Text, Community_Image, VIDEO_CHANNEL_ID, GROUP_MODER_IDS, ALLOWED_USER_IDS, RedisManager
+from commands.information_cog.warnings import security_block_embed, invalid_input_embed, record_not_found_embed
 from commands.information_cog.time import hours_time
 from redis_storage.dispatcher_message import DispatcherMessage
+from redis_storage.auto_messages import AutoMessages
 
-message_lifetime = timedelta(hours=48)
+message_lifetime = timedelta(days=90)
+confirmation_lifetime = timedelta(hours=1)
 
-IMAGE_URL_PATTERN = re.compile(r"^https?://\S+\.(jpg|jpeg|png|gif|webp)(\?\S*)?$", re.IGNORECASE)
+
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+YOUTUBE_DOMAINS = ("youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com")
+VK_DOMAINS = ("vk.com", "www.vk.com", "m.vk.com")
+
+
+def _parsed_url(url: str):
+    if not url or not url.strip():
+        return None
+    try:
+        parsed = urlparse(url.strip())
+    except ValueError:
+        return None
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    return parsed
 
 
 def is_valid_image_url(url: str) -> bool:
-    return bool(url and IMAGE_URL_PATTERN.match(url.strip()))
+    parsed = _parsed_url(url)
+    return bool(parsed and parsed.path.lower().endswith(IMAGE_EXTENSIONS))
+
+
+def is_valid_youtube_url(url: str) -> bool:
+    parsed = _parsed_url(url)
+    return bool(parsed and parsed.netloc.lower() in YOUTUBE_DOMAINS)
+
+
+def is_valid_vk_url(url: str) -> bool:
+    parsed = _parsed_url(url)
+    return bool(parsed and parsed.netloc.lower() in VK_DOMAINS)
 
 
 class VideoIntegration(commands.Cog):
@@ -35,92 +63,136 @@ class VideoIntegration(commands.Cog):
             embed.set_image(url=preview_url)
 
         if youtube_link and youtube_link.strip():
-            embed.add_field(
-                name="<:youtube:1390972086876377192> YouTube:",
-                value=youtube_link,
-                inline=False
-            )
+            embed.add_field(name="<:youtube:1390972086876377192> YouTube:", value=youtube_link, inline=False)
 
         if vk_link and vk_link.strip():
-            embed.add_field(
-                name="<:vk:1390972535298068570> VKontakte:",
-                value=vk_link,
-                inline=False
-            )
+            embed.add_field(name="<:vk:1390972535298068570> VKontakte:", value=vk_link, inline=False)
 
         embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
         return embed
 
+    def _confirmation_embed(
+        self,
+        channel: disnake.TextChannel,
+        record_id: str,
+        author: disnake.Member,
+        edited: bool = False,
+    ) -> tuple[disnake.Embed, disnake.File]:
+        action = "обновлена" if edited else "отправлена"
+        embed = disnake.Embed(
+            title="<:videooctagon:1525766965292040252> Интеграция с видео успешно " + action,
+            description=(
+                f"> Оперативная **видеозапись** успешно зарегистрирована. Архивирование завершено, материал **готов** к дальнейшему **использованию**.\n\n"
+                f"Материал размещён в канале: {channel.mention}\n"
+                f"Отправил лейтенант: {author.mention}\n\n"
+                f"ID для редактирования: ```{record_id}```\n\n"
+                f"Срок хранения данного сообщения ограничен. Автоматическое удаление будет выполнено через 24 часа."
+            ),
+            color=self.embed_color,
+        )
+        file = disnake.File(Community_Image, filename="community.png")
+        embed.set_image(url="attachment://community.png")
+        embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
+        return embed, file
+
+    async def _send_confirmation(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        record_id: str,
+        channel: disnake.TextChannel,
+        author: disnake.Member,
+        edited: bool,
+    ):
+        """Отправляет подтверждение и удаляет предыдущее сообщение, если оно существует"""
+        key = f"video_confirm:{record_id}"
+
+        async with RedisManager() as redis:
+            previous = await redis.load(AutoMessages, key=key)
+
+            if previous and previous.message_id is not None and previous.channel_id is not None:
+                try:
+                    old_channel = self.bot.get_channel(int(previous.channel_id))
+                    if old_channel:
+                        old_message = await old_channel.fetch_message(int(previous.message_id))
+                        await old_message.delete()
+                except (disnake.NotFound, disnake.Forbidden):
+                    pass
+
+            confirm_embed, confirm_file = self._confirmation_embed(channel, record_id, author, edited=edited)
+            new_message = await inter.channel.send(
+                embed=confirm_embed,
+                file=confirm_file,
+                delete_after=confirmation_lifetime.total_seconds(),
+            )
+
+            auto_record = AutoMessages(
+                id=record_id,
+                message_id=str(new_message.id),
+                channel_id=str(inter.channel.id),
+                timestamp=hours_time,
+            )
+            await redis.save(auto_record, key=key, ttl=confirmation_lifetime)
+
     @commands.slash_command(
         name="video",
-        description="Отправить видео-интеграцию (укажи ID, чтобы отредактировать)"
+        description="Отправить видео-интеграцию в канал",
     )
     @commands.contexts(bot_dm=False, guild=True)
-    #@commands.default_member_permissions(manage_messages=True, moderate_members=True, administrator=True)
+    @commands.default_member_permissions(manage_messages=True, moderate_members=True, administrator=True)
     async def send_video_integration(
         self,
         inter: disnake.ApplicationCommandInteraction,
-        title: str = commands.Param(
-            name="название",
-            description="Заголовок видеоматериала"
-        ),
-        preview_url: str = commands.Param(
-            name="превью",
-            description="Прямая ссылка на превью (jpg/png/gif/webp)"
-        ),
-        youtube_link: str = commands.Param(
-            name="ютуб",
-            description="Ссылка на видео в YouTube"
-        ),
-        vk_link: str = commands.Param(
-            name="вконтакте",
-            description="Ссылка на видео во ВКонтакте",
-            default=""
-        ),
-        record_id: str = commands.Param(
-            name="id",
-            description="ID записи для редактирования (первые 8 символов)",
-            default=None
-        )
+        title: str = commands.Param(name="название", description="Наименование видеоматериалов операции"),
+        preview_url: str = commands.Param(name="превью", description="Прямая ссылка на превью или изображение"),
+        youtube_link: str = commands.Param(name="ютуб", description="Ссылка на видео в YouTube"),
+        vk_link: str = commands.Param(name="вконтакте", description="Ссылка на видео во ВКонтакте", default=""),
+        record_id: str = commands.Param(name="id", description="ID записи для редактирования", default=None),
     ):
-        await inter.response.defer(ephemeral=True)
-
         owner = inter.guild.owner.mention if inter.guild and inter.guild.owner else "Не назначен"
+        admins_mentions = " ".join(f"<@{uid}>" for uid in ALLOWED_USER_IDS)
 
+        # Доступ — проверка синхронная, отвечаем сразу
         if not self._has_access(inter):
-            await inter.edit_original_response(embed=security_block_embed(self.embed_color, owner))
+            await inter.response.send_message(
+                embed=security_block_embed(self.embed_color, owner), ephemeral=True
+            )
             return
 
-        # ── Режим редактирования ────────────────────────────────────────────
+        # Режим редактирования
         if record_id:
+            await inter.response.defer(ephemeral=True)
+
             async with RedisManager() as redis:
-                record = await redis.load(DispatcherMessage, key=f"video:{record_id}")
+                record = await redis.load(DispatcherMessage, key=f"video_embed:{record_id}")
 
             if not record:
-                await inter.edit_original_response(
-                    "Запись с таким ID не найдена или истёк срок хранения (48 часов)."
-                )
+                await inter.edit_original_response(embed=record_not_found_embed(self.embed_color, owner))
                 return
 
             channel = self.bot.get_channel(int(record.channel_id))
             if not channel:
-                await inter.edit_original_response("Канал не найден.")
+                await inter.edit_original_response(embed=record_not_found_embed(self.embed_color, owner))
                 return
 
             try:
                 message = await channel.fetch_message(int(record.message_id))
             except disnake.NotFound:
-                await inter.edit_original_response("Исходное сообщение не найдено — возможно, было удалено.")
+                await inter.edit_original_response(embed=record_not_found_embed(self.embed_color, owner))
                 return
 
             if preview_url and not is_valid_image_url(preview_url):
-                await inter.edit_original_response(
-                    "Ссылка на превью некорректна. Нужна прямая ссылка на .jpg/.png/.gif/.webp"
-                )
+                await inter.edit_original_response(embed=invalid_input_embed(self.embed_color, admins_mentions))
+                return
+
+            if youtube_link and not is_valid_youtube_url(youtube_link):
+                await inter.edit_original_response(embed=invalid_input_embed(self.embed_color, admins_mentions))
+                return
+
+            if vk_link and vk_link.strip() and not is_valid_vk_url(vk_link):
+                await inter.edit_original_response(embed=invalid_input_embed(self.embed_color, admins_mentions))
                 return
 
             old_embed = message.embeds[0] if message.embeds else disnake.Embed(color=self.embed_color)
-
             old_youtube = old_vk = None
             for field in old_embed.fields:
                 if "YouTube" in field.name:
@@ -134,29 +206,42 @@ class VideoIntegration(commands.Cog):
                 youtube_link=youtube_link or old_youtube,
                 vk_link=vk_link or old_vk,
             )
-
             await message.edit(embed=new_embed)
-            await inter.edit_original_response(f"Сообщение в {channel.mention} обновлено.")
+
+            await inter.delete_original_response()
+            await self._send_confirmation(inter, record.id, channel, inter.author, edited=True)
             return
 
-        # ── Режим создания нового сообщения ─────────────────────────────────
+        # Режим создания — проверки синхронные
         if not is_valid_image_url(preview_url):
-            await inter.edit_original_response(
-                "Ссылка на превью некорректна. Нужна прямая ссылка на .jpg/.png/.gif/.webp"
+            await inter.response.send_message(
+                embed=invalid_input_embed(self.embed_color, admins_mentions), ephemeral=True
+            )
+            return
+
+        if not is_valid_youtube_url(youtube_link):
+            await inter.response.send_message(
+                embed=invalid_input_embed(self.embed_color, admins_mentions), ephemeral=True
+            )
+            return
+
+        if vk_link and vk_link.strip() and not is_valid_vk_url(vk_link):
+            await inter.response.send_message(
+                embed=invalid_input_embed(self.embed_color, admins_mentions), ephemeral=True
             )
             return
 
         channel = self.bot.get_channel(VIDEO_CHANNEL_ID)
         if not channel:
-            await inter.edit_original_response("Канал не найден. Проверь VIDEO_CHANNEL_ID.")
+            await inter.response.send_message(
+                embed=invalid_input_embed(self.embed_color, admins_mentions), ephemeral=True
+            )
             return
 
-        embed = self._build_embed(title, preview_url, youtube_link, vk_link)
+        await inter.response.defer(ephemeral=True)
 
-        message: disnake.Message = await channel.send(
-            content=self.static_header,
-            embed=embed
-        )
+        embed = self._build_embed(title, preview_url, youtube_link, vk_link)
+        message: disnake.Message = await channel.send(content=self.static_header, embed=embed)
 
         record = DispatcherMessage(
             id=str(message.id)[:8],
@@ -164,16 +249,11 @@ class VideoIntegration(commands.Cog):
             channel_id=str(channel.id),
             user_id=str(inter.author.id),
             username=inter.author.name,
-            timestamp=hours_time
+            timestamp=hours_time,
         )
 
         async with RedisManager() as redis:
-            await redis.save(
-                record,
-                key=f"video:{record.id}",
-                ttl=message_lifetime
-            )
+            await redis.save(record, key=f"video:{record.id}", ttl=message_lifetime)
 
-        await inter.edit_original_response(
-            f"Интеграция успешно отправлена в {channel.mention}\nID для редактирования: `{record.id}`"
-        )
+        await inter.delete_original_response()
+        await self._send_confirmation(inter, record.id, channel, inter.author, edited=False)
