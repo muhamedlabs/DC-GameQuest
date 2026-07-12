@@ -39,7 +39,7 @@ def system_error_embed(color, owner):
 # Критическая ошибка
 def critical_error_embed(color, admins_mentions):
     return disnake.Embed(
-        title="<:forbidden:1390972224436965386> Критический системный сбой",
+        title="<:danger:1486233459524501644> Критический системный сбой",
         description=(
             "Во время выполнения операции произошла **внутренняя ошибка** командного комплекса. "
             "Обработка команды была немедленно **остановлена**.\n\n"
@@ -65,7 +65,7 @@ def security_block_embed(color, owner):
 # Ошибка данных
 def invalid_input_embed(color, admins_mentions):
     return disnake.Embed(
-        title="<:forbidden:1390972224436965386> Ошибка обработки данных",
+        title="<:globaledit:1524475135073976351> Ошибка обработки данных",
         description=(
             "Переданные **параметры содержат ошибки** или неполные данные. "
             "Выполнение операции невозможно.\n\n"
