@@ -200,14 +200,30 @@ class Verification(commands.Cog):
         self.active_captchas.pop(user_id, None)
 
     # ── Работа с Redis-записью верификации ──────────────────────────────────
+    async def get_existing_record(self, user_id: int) -> VerificationCaptcha | None:
+        """Получает существующую запись пользователя из Redis"""
+        try:
+            async with RedisManager() as redis:
+                record = await redis.load(VerificationCaptcha, key=f"{user_id}")
+                return record
+        except Exception as e:
+            print(f"Ошибка получения записи из Redis: {e}")
+            return None
+
     async def save_verification_record(self, member: disnake.Member):
         try:
+            # Получаем существующую запись, чтобы сохранить time_message
+            existing = await self.get_existing_record(member.id)
+            
+            # Создаем новую запись с обновленными данными
             record = VerificationCaptcha(
                 user_id=str(member.id),
                 username=member.name,
                 content=CONTENT_VERIFIED,
                 time_captcha=hours_time,
+                time_message=existing.time_message if existing and existing.time_message else MISSING
             )
+            
             async with RedisManager() as redis:
                 await redis.save(record, key=f"{member.id}")
         except Exception as e:
@@ -269,7 +285,8 @@ class Verification(commands.Cog):
         inter: disnake.ApplicationCommandInteraction,
         code: str = commands.Param(
             default=None,
-            description="Код с картинки"
+            name="код",
+            description="Введите код, отображённый на изображении"
         ),
     ):
         if inter.author.bot:
@@ -374,7 +391,6 @@ class Verification(commands.Cog):
         if role is not None:
             try:
                 await inter.author.add_roles(role, reason="Успешная анти-бот верификация")
-                print(f"Роль выдана {inter.author.name}")
             except disnake.Forbidden:
                 print(f"Нет прав выдать роль {inter.author.name}")
         else:
