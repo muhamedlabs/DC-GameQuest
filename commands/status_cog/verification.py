@@ -2,13 +2,22 @@ import random
 import string
 import io
 import asyncio
-import disnake
+import math
 from datetime import datetime, timedelta
-from disnake.ext import commands
-from PIL import Image, ImageDraw, ImageFont
-from BANNED_FILES.config import Embed_Color
 
-CAPTCHA_TTL = 15  # секунд
+import disnake
+from disnake.ext import commands, tasks
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from ashredis import MISSING
+
+from BANNED_FILES.config import Embed_Color, Captcha_Times, VERIFICATION_ID, Community_Image, RedisManager
+from redis_storage.verification_captcha import VerificationCaptcha
+from commands.information_cog.time import hours_time
+
+VERIFICATION_VALID_DAYS = 90
+CONTENT_VERIFIED = "Прошёл верификацию"
+CONTENT_EXPIRED = "Верификация не пройдена"
+CHECK_INTERVAL_MINUTES = 24
 
 
 class Verification(commands.Cog):
@@ -17,56 +26,131 @@ class Verification(commands.Cog):
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
         self.active_captchas: dict[int, dict] = {}
 
-    # ───────────── код ─────────────
+        self.BG    = (209, 240, 93)
+        self.TEXT  = (0, 0, 0)
+        self.NOISE = (43, 43, 43)
+
+        self.FOOTER = "Благодарим за проявленный интерес к нашему спецпроекту!"
+
+        self.VISIBILITY = {
+            "challenge":        True,   # картинка с капчей
+            "already_verified": True,   # у пользователя уже есть роль
+            "not_found":        True,   # капча не найдена / истекла
+            "expired":          True,   # истекло время
+            "wrong_code":       True,   # неверный код
+            "success":          False,  # успешная верификация
+        }
+
+    async def cog_load(self):
+        self.check_expired_verifications.start()
+
+    def cog_unload(self):
+        self.check_expired_verifications.cancel()
+
     def generate_code(self, length: int = 5) -> str:
-        return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
+        chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        return "".join(random.choices(chars, k=length))
 
-    # ───────────── картинка ─────────────
+    def community_file(self) -> disnake.File:
+        return disnake.File(Community_Image, filename="community.png")
+
     def generate_captcha_image(self, text: str) -> disnake.File:
-        WIDTH, HEIGHT = 280, 110
+        WIDTH, HEIGHT = 885, 331
 
-        BG = (209, 240, 93)     # d1f05d
-        NOISE = (43, 43, 43)    # 2B2B2B
-        TEXT = (0, 0, 0)       # 000000
+        scale = WIDTH / 320
 
-        img = Image.new("RGB", (WIDTH, HEIGHT), BG)
+        BG    = self.BG
+        TEXT  = self.TEXT
+        NOISE = self.NOISE
+
+        img  = Image.new("RGB", (WIDTH, HEIGHT), BG)
         draw = ImageDraw.Draw(img)
 
-        try:
-            font = ImageFont.truetype("arialbd.ttf", 50)
-        except Exception:
-            font = ImageFont.load_default()
+        # фоновая сетка
+        grid_step = max(1, int(18 * scale))
+        for x in range(0, WIDTH, grid_step):
+            draw.line([(x, 0), (x, HEIGHT)], fill=NOISE, width=1)
+        for y in range(0, HEIGHT, grid_step):
+            draw.line([(0, y), (WIDTH, y)], fill=NOISE, width=1)
 
-        # шум
-        for _ in range(140):
+        # случайные точки шума
+        for _ in range(int(300 * scale)):
             x = random.randint(0, WIDTH)
             y = random.randint(0, HEIGHT)
-            draw.ellipse((x, y, x + 2, y + 2), fill=NOISE)
-
-        # линии
-        for _ in range(3):
-            y = random.randint(25, HEIGHT - 25)
-            draw.line(
-                [(0, y), (WIDTH, y + random.randint(-20, 20))],
-                fill=NOISE,
-                width=2
+            r = random.randint(1, max(1, int(3 * scale)))
+            color = (
+                min(255, NOISE[0] + random.randint(-20, 20)),
+                min(255, NOISE[1] + random.randint(-20, 20)),
+                min(255, NOISE[2] + random.randint(-20, 20)),
             )
+            draw.ellipse((x - r, y - r, x + r, y + r), fill=color)
 
-        # текст
-        spacing = WIDTH // (len(text) + 1)
+        # синусоидальные линии помехи
+        for _ in range(4):
+            amplitude = random.randint(int(6 * scale), int(18 * scale))
+            frequency = random.uniform(0.03, 0.07) / scale
+            phase     = random.uniform(0, math.pi * 2)
+            y_base    = random.randint(int(20 * scale), HEIGHT - int(20 * scale))
+            line_w    = max(1, int(2 * scale))
+            points    = []
+            for x in range(0, WIDTH, 3):
+                y = int(y_base + amplitude * math.sin(frequency * x + phase))
+                points.append((x, y))
+            for i in range(len(points) - 1):
+                draw.line([points[i], points[i + 1]], fill=NOISE, width=line_w)
+
+        # загрузка шрифта
+        font_size = int(52 * scale)
+        try:
+            font = ImageFont.truetype("arialbd.ttf", font_size)
+        except Exception:
+            try:
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except Exception:
+                font = ImageFont.load_default()
+
+        # рендер каждого символа с трансформациями
+        char_box_w = int(70 * scale)
+        char_box_h = int(80 * scale)
+        char_width = WIDTH // (len(text) + 1)
         for i, char in enumerate(text):
-            char_img = Image.new("RGBA", (60, 70), (0, 0, 0, 0))
+            char_img  = Image.new("RGBA", (char_box_w, char_box_h), (0, 0, 0, 0))
             char_draw = ImageDraw.Draw(char_img)
-            char_draw.text((10, 10), char, font=font, fill=TEXT)
 
-            angle = random.randint(-25, 25)
-            char_img = char_img.rotate(angle, expand=1)
+            # тень для объёма
+            shadow_offset = int(12 * scale)
+            base_offset   = int(10 * scale)
+            shadow_color  = (80, 80, 80, 180)
+            char_draw.text((shadow_offset, shadow_offset), char, font=font, fill=shadow_color)
+            char_draw.text((base_offset, base_offset), char, font=font, fill=TEXT + (255,))
 
-            img.paste(
-                char_img,
-                (spacing * (i + 1) - 20, random.randint(25, 40)),
-                char_img
+            # случайный поворот и масштаб
+            angle    = random.randint(-30, 30)
+            rand_scale = random.uniform(0.85, 1.15)
+            new_size = (int(char_box_w * rand_scale), int(char_box_h * rand_scale))
+            char_img = char_img.resize(new_size, Image.LANCZOS)
+            char_img = char_img.rotate(angle, expand=True)
+
+            x = char_width * (i + 1) - int(25 * scale) + random.randint(int(-5 * scale), int(5 * scale))
+            y = random.randint(int(15 * scale), int(35 * scale))
+            img.paste(char_img, (x, y), char_img)
+
+        # лёгкий блюр для склейки
+        img = img.filter(ImageFilter.GaussianBlur(radius=0.6 * scale))
+
+        # виньетка по краям
+        vignette = Image.new("RGB", (WIDTH, HEIGHT), (180, 210, 70))
+        v_draw   = ImageDraw.Draw(vignette)
+        v_steps  = int(30 * scale)
+        for step in range(v_steps):
+            opacity = int(120 * (1 - step / v_steps))
+            color   = (
+                max(0, BG[0] - opacity // 2),
+                max(0, BG[1] - opacity // 2),
+                max(0, BG[2] - opacity // 3),
             )
+            v_draw.rectangle([step, step, WIDTH - step, HEIGHT - step], outline=color)
+        img = Image.blend(img, vignette, alpha=0.12)
 
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
@@ -74,15 +158,111 @@ class Verification(commands.Cog):
 
         return disnake.File(buffer, filename="captcha.png")
 
-    # ───────────── авто-очистка ─────────────
+    def error_embed(self, description: str) -> disnake.Embed:
+        embed = disnake.Embed(
+            title="<:lockslash:1528278437502914570> Контрольно-пропускной пункт не пройден",
+            description=description,
+            color=self.embed_color
+        )
+        embed.set_image(url="attachment://community.png")
+        embed.set_footer(text=self.FOOTER)
+        return embed
+
+    def success_embed(self, member: disnake.Member) -> disnake.Embed:
+        embed = disnake.Embed(
+            title="<:unlock:1528278439600066680> Контрольно-пропускной пункт пройден",
+            description=(
+                f"> Лейтенант {member.mention}, идентификация завершена. Все системы **подтвердили** вашу "
+                f"**личность**.\n\nДоступ к охраняемой территории открыт. Желаем **успешной службы**"
+            ),
+            color=self.embed_color
+        )
+        embed.set_image(url="attachment://community.png")
+        embed.set_footer(text=self.FOOTER)
+        return embed
+
+    def already_verified_embed(self, member: disnake.Member) -> disnake.Embed:
+        embed = disnake.Embed(
+            title="<:unlock:1528278439600066680> Контрольно пункт уже выдал вам допуск",
+            description=(
+                f"> Лейтенант {member.mention}, военная система безопасности уже **завершила** проверку вашей "
+                f"личности.\n\nДопуск на территорию базы был успешно выдан ранее, поэтому повторное "
+                f"прохождение **верификации** не требуется"
+            ),
+            color=self.embed_color
+        )
+        embed.set_image(url="attachment://community.png")
+        embed.set_footer(text=self.FOOTER)
+        return embed
+
     async def expire_captcha(self, user_id: int):
-        await asyncio.sleep(CAPTCHA_TTL)
+        await asyncio.sleep(Captcha_Times)
         self.active_captchas.pop(user_id, None)
 
-    # ───────────── команда ─────────────
+    # ── Работа с Redis-записью верификации ──────────────────────────────────
+    async def save_verification_record(self, member: disnake.Member):
+        try:
+            record = VerificationCaptcha(
+                user_id=str(member.id),
+                username=member.name,
+                content=CONTENT_VERIFIED,
+                time_captcha=hours_time,
+            )
+            async with RedisManager() as redis:
+                await redis.save(record, key=f"{member.id}")
+        except Exception as e:
+            print(f"ОШИБКА сохранения в Redis: {e}")
+
+    async def _expire_verification(self, record: VerificationCaptcha):
+        """Снимает роль верификации у пользователя и помечает запись как неактуальную."""
+        user_id = int(record.user_id)
+
+        for guild in self.bot.guilds:
+            member = guild.get_member(user_id)
+            if member is None:
+                continue
+            role = guild.get_role(VERIFICATION_ID)
+            if role is not None and role in member.roles:
+                try:
+                    await member.remove_roles(role, reason="Истёк срок действия верификации")
+                except disnake.Forbidden:
+                    print(f"Нет прав снять роль верификации у {member.name}")
+
+        record.content = CONTENT_EXPIRED
+        async with RedisManager() as redis:
+            await redis.save(record, key=record.user_id)
+
+    @tasks.loop(hours=CHECK_INTERVAL_MINUTES)
+    async def check_expired_verifications(self):
+        try:
+            async with RedisManager() as redis:
+                records = await redis.load_many(VerificationCaptcha, "*")
+
+            for record in records:
+                if record.content != CONTENT_VERIFIED:
+                    continue
+
+                # Парсим время из строки (формат hours_time: "дд.мм.гггг чч:мм:сс")
+                try:
+                    time_dt = datetime.strptime(record.time_captcha, "%d.%m.%Y %H:%M:%S")
+                    now_dt = datetime.strptime(hours_time, "%d.%m.%Y %H:%M:%S")
+                except Exception as e:
+                    print(f"Ошибка парсинга времени {record.time_captcha}: {e}")
+                    continue
+
+                if now_dt - time_dt >= timedelta(days=VERIFICATION_VALID_DAYS):
+                    await self._expire_verification(record)
+        
+        except Exception as e:
+            print(f"ОШИБКА в check_expired_verifications: {e}")
+
+    @check_expired_verifications.before_loop
+    async def before_check_expired_verifications(self):
+        await self.bot.wait_until_ready()
+
     @commands.slash_command(
-        name="verify",
-        description="Верификация от ботов"
+        name="идентификация",
+        description="Военная система антиботовой защиты"
     )
     async def verify(
         self,
@@ -95,65 +275,114 @@ class Verification(commands.Cog):
         if inter.author.bot:
             return
 
-        await inter.response.defer(ephemeral=True)
-
         user_id = inter.author.id
-        now = datetime.utcnow()
+        now     = datetime.utcnow()
 
-        # ─── первый вызов ───
-        if code is None:
+        already_has_role = False
+        if inter.guild is not None:
+            role = inter.guild.get_role(VERIFICATION_ID)
+            if role is not None and role in inter.author.roles:
+                already_has_role = True
+
+        if code is None and already_has_role:
+            scenario = "already_verified"
+        elif code is None:
+            scenario = "challenge"
+        else:
+            data = self.active_captchas.get(user_id)
+            if not data:
+                scenario = "not_found"
+            elif now > data["expires"]:
+                scenario = "expired"
+            elif code.upper() != data["code"]:
+                scenario = "wrong_code"
+            else:
+                scenario = "success"
+
+        await inter.response.defer(ephemeral=self.VISIBILITY[scenario])
+
+        if scenario == "already_verified":
+            await inter.edit_original_response(
+                embed=self.already_verified_embed(inter.author),
+                file=self.community_file()
+            )
+            return
+
+        if scenario == "challenge":
             captcha_code = self.generate_code()
-            image = self.generate_captcha_image(captcha_code)
+            image        = self.generate_captcha_image(captcha_code)
 
             self.active_captchas[user_id] = {
-                "code": captcha_code,
-                "expires": now + timedelta(seconds=CAPTCHA_TTL),
+                "code":    captcha_code,
+                "expires": now + timedelta(seconds=Captcha_Times),
             }
 
             self.bot.loop.create_task(self.expire_captcha(user_id))
 
             embed = disnake.Embed(
-                title="🛡 Анти-бот верификация",
+                title="<:lock:1528278435913535488> Контрольно-пропускной пункт",
                 description=(
-                    "Введите код с картинки:\n"
-                    "`/verify КОД`\n\n"
-                    "⏱ **Время действия:** 15 секунд"
+                    f"Для получения допуска введи **код с планшета разведки**, используя команду: "
+                    f"`/идентификация XXXXX`\n\n"
+                    f"**Пропуск действителен:** 2 минуты"
                 ),
                 color=self.embed_color
             )
+            embed.set_footer(text=self.FOOTER)
             embed.set_image(url="attachment://captcha.png")
 
+            await inter.edit_original_response(embed=embed, file=image)
+            return
+
+        if scenario == "not_found":
             await inter.edit_original_response(
-                embed=embed,
-                file=image
+                embed=self.error_embed(
+                    "> Лейтенант, запись о вашем допуске **не найдена** в системе безопасности, либо срок "
+                    "действия пропуска истёк.\n\nДля восстановления доступа необходимо заново "
+                    "**подтвердить** личность"
+                ),
+                file=self.community_file()
             )
             return
 
-        # ─── проверка ───
-        data = self.active_captchas.get(user_id)
-
-        if not data:
-            await inter.edit_original_response(
-                content="❌ Капча не найдена или истекло время.\nИспользуй `/verify` ещё раз."
-            )
-            return
-
-        if now > data["expires"]:
+        if scenario == "expired":
             self.active_captchas.pop(user_id, None)
             await inter.edit_original_response(
-                content="⏱ Время истекло. Вызови `/verify` заново."
+                embed=self.error_embed(
+                    "> Лейтенант, система безопасности зафиксировала **окончание** срока действия пропуска.\n\n"
+                    "Для восстановления доступа **требуется** повторная идентификация"
+                ),
+                file=self.community_file()
             )
             return
 
-        if code.upper() != data["code"]:
+        if scenario == "wrong_code":
             await inter.edit_original_response(
-                content="❌ Неверный код. Попробуй ещё раз."
+                embed=self.error_embed(
+                    "> Лейтенант, код доступа не прошёл проверку контрольно-пропускного пункта.\n\nПопытка "
+                    "**идентификации** завершилась неудачей. Проверьте полученный код и повторите "
+                    "**процедуру** верификации"
+                ),
+                file=self.community_file()
             )
             return
 
-        # ─── успех ───
+        # scenario == "success"
         self.active_captchas.pop(user_id, None)
 
+        role = inter.guild.get_role(VERIFICATION_ID) if inter.guild else None
+        if role is not None:
+            try:
+                await inter.author.add_roles(role, reason="Успешная анти-бот верификация")
+                print(f"Роль выдана {inter.author.name}")
+            except disnake.Forbidden:
+                print(f"Нет прав выдать роль {inter.author.name}")
+        else:
+            print(f"Роль VERIFICATION_ID ({VERIFICATION_ID}) не найдена на сервере")
+
+        await self.save_verification_record(inter.author)
+
         await inter.edit_original_response(
-            content="✅ **Успешно верифицирован!**"
+            embed=self.success_embed(inter.author),
+            file=self.community_file()
         )
