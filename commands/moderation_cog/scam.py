@@ -73,6 +73,21 @@ class ScamVerification(commands.Cog):
         except Exception as e:
             print(f"Ошибка сохранения в Redis для {user_id}: {e}")
 
+    async def should_send_warning(self, member: disnake.Member) -> bool:
+        """Проверяет, можно ли отправить предупреждение (прошло 3+ часа)"""
+        record = await self.get_user_verification_record(member.id)
+        if record and record.time_message:
+            try:
+                last_time = datetime.strptime(record.time_message, "%d.%m.%Y %H:%M:%S")
+                current_time = datetime.strptime(hours_time, "%d.%m.%Y %H:%M:%S")
+                time_diff = current_time - last_time
+                
+                if time_diff < timedelta(hours=3):
+                    return False
+            except Exception as e:
+                print(f"Ошибка парсинга времени для {member.name}: {e}")
+        return True
+
     async def send_warning(self, member: disnake.Member, action: str):
         """Отправляет предупреждение в ЛС и сохраняет время в Redis"""
         try:
@@ -108,17 +123,8 @@ class ScamVerification(commands.Cog):
             if self.should_ignore(member):
                 return
             
-            record = await self.get_user_verification_record(member.id)
-            if record and record.time_message:
-                try:
-                    last_time = datetime.strptime(record.time_message, "%d.%m.%Y %H:%M:%S")
-                    current_time = datetime.strptime(hours_time, "%d.%m.%Y %H:%M:%S")
-                    time_diff = current_time - last_time
-                    
-                    if time_diff < timedelta(hours=3):
-                        return
-                except Exception as e:
-                    print(f"Ошибка парсинга времени для {member.name}: {e}")
+            if not await self.should_send_warning(member):
+                return
             
             await self.send_warning(member, action)
             
@@ -156,20 +162,36 @@ class ScamVerification(commands.Cog):
         if self.has_verification_role(member):
             return
         
+        # Проверяем, можно ли отправлять предупреждение (прошло 3+ часа)
+        if not await self.should_send_warning(member):
+            # Если предупреждение уже было недавно - просто выгоняем и удаляем сообщения
+            try:
+                await member.move_to(None)
+                if after.channel:
+                    async for message in after.channel.history(limit=10):
+                        if message.author.id == member.id:
+                            try:
+                                await message.delete()
+                            except:
+                                pass
+                return
+            except:
+                return
+        
         try:
             # Выгоняем из войса
             await member.move_to(None)
             
-            # Удаляем все сообщения пользователя в голосовых каналах за последние 10 сообщений
+            # Удаляем сообщения пользователя в голосовых каналах за последние 10 сообщений
             if after.channel:
                 async for message in after.channel.history(limit=10):
                     if message.author.id == member.id:
                         try:
                             await message.delete()
-                            print(f"Удалено голосовое сообщение от {member.name}")
                         except Exception as e:
                             print(f"Ошибка удаления голосового сообщения: {e}")
             
+            # Запускаем таймер на отправку предупреждения
             self.bot.loop.create_task(self.warn_after_delay(member, "зайти в голосовой канал"))
         except Exception as e:
             print(f"Ошибка выгона из войса {member.name}: {e}")
