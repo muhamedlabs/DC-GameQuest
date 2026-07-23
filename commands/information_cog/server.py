@@ -16,6 +16,8 @@ class ServerInfo(commands.Cog):
         name="сервер",
         description="Сканирование серверной инфраструктуры"
     )
+    @commands.contexts(bot_dm=False, guild=True)
+    
     async def serverinfo(self, inter: disnake.AppCmdInter):
         await inter.response.defer()
 

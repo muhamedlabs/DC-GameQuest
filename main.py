@@ -19,8 +19,8 @@ intents.presences = True
 intents.voice_states = True
 intents.guilds = True
 
-# Определяем TESTING  если есть хотя б одина гильдия
-TESTING = [g for g in [DISCORD_ID, DISCORD_ERROR] if g] or None
+# Определяем TESTING  если есть хотя б одина гильдия или глобально None
+TESTING = [g for g in [DISCORD_ID, DISCORD_ERROR] if g] or None 
 
 # Инициализация бота
 bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, test_guilds=TESTING)
