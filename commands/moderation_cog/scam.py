@@ -29,7 +29,7 @@ class ScamVerification(commands.Cog):
         if user.id in self.allowed_users:
             return True
         return False
-    
+
     def community_file(self) -> disnake.File:
         return disnake.File(Community_Image, filename="community.png")
 
@@ -55,7 +55,7 @@ class ScamVerification(commands.Cog):
         """Сохраняет запись пользователя в Redis"""
         try:
             existing = await self.get_user_verification_record(user_id)
-            
+
             if existing:
                 existing.time_message = time_message
                 record = existing
@@ -67,7 +67,7 @@ class ScamVerification(commands.Cog):
                     time_captcha="Ожидает...",
                     time_message=time_message
                 )
-            
+
             async with RedisManager() as redis:
                 await redis.save(record, key=f"{user_id}")
         except Exception as e:
@@ -81,7 +81,7 @@ class ScamVerification(commands.Cog):
                 last_time = datetime.strptime(record.time_message, "%d.%m.%Y %H:%M:%S")
                 current_time = datetime.strptime(hours_time, "%d.%m.%Y %H:%M:%S")
                 time_diff = current_time - last_time
-                
+
                 if time_diff < timedelta(hours=3):
                     return False
             except Exception as e:
@@ -103,31 +103,53 @@ class ScamVerification(commands.Cog):
 
             embed.set_image(url="attachment://community.png")
             embed.set_footer(text=self.FOOTER)
-            
+
             await member.send(embed=embed, file=self.community_file())
-            
+
             current_time = hours_time
             await self.save_user_verification_record(member.id, member.name, current_time)
-            
+
         except Exception as e:
             print(f"Не удалось отправить ЛС {member.name}: {e}")
 
-    async def warn_after_delay(self, member: disnake.Member, action: str):
-        """Отправляет предупреждение через 13 минут, если прошло больше 3 часов с последнего"""
+    async def send_channel_notice(self, message: disnake.Message, action: str):
+        """Отправляет короткое уведомление в канал и удаляет его через несколько секунд"""
         try:
-            await asyncio.sleep(780)  # 13 минут
-            
+            embed = disnake.Embed(
+                title="<:lock:1528278435913535488> Требуется пройти контрольно пункт",
+                description=(
+                    f"> **Лейтенант** {message.author.mention}, ваше сообщение удалено системой безопасности.\n\n"
+                    f"Необходимо пройти верификацию для получения допуска с помощью команды: `/идентификация`.\n\n"
+                    f"До завершения процедуры **ваши** сообщения будут **удаляться**, а вход в голосовые каналы **блокироваться**"
+                ),
+                color=self.embed_color
+            )
+
+            embed.set_image(url="attachment://community.png")
+            embed.set_footer(text=self.FOOTER)
+
+            notice = await message.channel.send(embed=embed, file=self.community_file())
+            await asyncio.sleep(15)
+            await notice.delete()
+        except Exception as e:
+            print(f"Ошибка отправки уведомления в канал: {e}")
+
+    async def warn_after_delay(self, member: disnake.Member, action: str):
+        """Отправляет предупреждение через 3 минуты, если прошло больше 3 часов с последнего"""
+        try:
+            await asyncio.sleep(180)
+
             if self.has_verification_role(member):
                 return
-            
+
             if self.should_ignore(member):
                 return
-            
+
             if not await self.should_send_warning(member):
                 return
-            
+
             await self.send_warning(member, action)
-            
+
         except Exception as e:
             print(f"Ошибка в warn_after_delay для {member.name}: {e}")
 
@@ -135,7 +157,7 @@ class ScamVerification(commands.Cog):
     async def on_message(self, message: disnake.Message):
         if message.guild is None:
             return
-            
+
         if message.author.bot:
             return
         if message.author.id == self.bot.user.id:
@@ -144,9 +166,10 @@ class ScamVerification(commands.Cog):
             return
         if self.has_verification_role(message.author):
             return
-        
+
         try:
             await message.delete()
+            self.bot.loop.create_task(self.send_channel_notice(message, "написать сообщение"))
             self.bot.loop.create_task(self.warn_after_delay(message.author, "написать сообщение"))
         except Exception as e:
             print(f"Ошибка удаления сообщения от {message.author.name}: {e}")
@@ -161,10 +184,9 @@ class ScamVerification(commands.Cog):
             return
         if self.has_verification_role(member):
             return
-        
+
         # Проверяем, можно ли отправлять предупреждение (прошло 3+ часа)
         if not await self.should_send_warning(member):
-            # Если предупреждение уже было недавно - просто выгоняем и удаляем сообщения
             try:
                 await member.move_to(None)
                 if after.channel:
@@ -177,12 +199,11 @@ class ScamVerification(commands.Cog):
                 return
             except:
                 return
-        
+
         try:
             # Выгоняем из войса
             await member.move_to(None)
-            
-            # Удаляем сообщения пользователя в голосовых каналах за последние 10 сообщений
+
             if after.channel:
                 async for message in after.channel.history(limit=10):
                     if message.author.id == member.id:
@@ -190,7 +211,7 @@ class ScamVerification(commands.Cog):
                             await message.delete()
                         except Exception as e:
                             print(f"Ошибка удаления голосового сообщения: {e}")
-            
+
             # Запускаем таймер на отправку предупреждения
             self.bot.loop.create_task(self.warn_after_delay(member, "зайти в голосовой канал"))
         except Exception as e:

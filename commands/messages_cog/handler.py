@@ -29,25 +29,22 @@ class WelcomeHandler(commands.Cog):
 
         # Создание Embed
         embed = disnake.Embed(
-            title=f"<:enhance:1390972267504210062> Здравия желаю, {member.display_name}",
+            title=f"<:enhance:1390972267504210062> Здравия желаю лейтенант {member.display_name}",
             description=(
-                "Обязательно **ознакомьтесь** с правилами сервера, чтобы не пропустить важную информацию. "
-                "**Исследуйте** разделы навигации для **поиска** дополнительного увлекательного контента.\n\n"
-                "> Также, не упустите возможность **познакомиться** с другими участниками — за каждым никнеймом таится своя уникальная **история** и интересы!"
+                f"> Ознакомьтесь с **правилами** сервера и загляните в разделы **навигации** {member.mention}. Там ждёт много полезного и увлекательного контента.\n\n"
+                "Не упустите возможность **познакомиться** с другими участниками — "
+                "за каждым никнеймом скрывается своя уникальная **история** и интересы!\n\n"
+                "<:lock:1528278435913535488> Для получения **полного доступа** к серверу пройдите верификацию с помощью команды: `/идентификация`"
             ),
             color=self.embed_color
         )
         embed.set_image(url=f"attachment://{os.path.basename(Welcome_Gif)}")
         embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
 
-        # Отправка сообщения с embed и спойлером-упоминанием
         with open(Welcome_Gif, "rb") as f:
             gif_file = disnake.File(f, filename=os.path.basename(Welcome_Gif))
             await welcome_channel.send(
-                content=f"||{member.mention}||",
                 embed=embed,
-                file=gif_file
+                file=gif_file,
+                flags=disnake.MessageFlags(suppress_notifications=True)
             )
-
-
-
