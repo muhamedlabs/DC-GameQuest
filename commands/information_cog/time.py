@@ -12,3 +12,6 @@ hours_time = (datetime.utcnow() + timedelta(hours=Time_interval)).strftime("%d.%
 
 def current_time() -> str:
     return (datetime.utcnow() + timedelta(hours=Time_interval)).strftime("%d.%m.%Y %H:%M:%S")
+
+def parse_time(value: str) -> datetime:
+    return datetime.strptime(value, "%d.%m.%Y %H:%M:%S")
