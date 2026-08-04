@@ -5,7 +5,7 @@ import warnings
 import ashredis 
 from dotenv import load_dotenv
 from disnake.ext import commands
-from BANNED_FILES.config import discord_bot, DISCORD_ID, DISCORD_ERROR
+from BANNED_FILES.config import discord_bot, TESTING
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -19,11 +19,11 @@ intents.presences = True
 intents.voice_states = True
 intents.guilds = True
 
-# Определяем TESTING  если есть хотя б одина гильдия или глобально None
-TESTING = [g for g in [DISCORD_ID, DISCORD_ERROR] if g] or None 
+# Определяем Demo  если есть хотя б одина гильдия или глобально None
+Demo = TESTING or None
 
 # Инициализация бота
-bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, test_guilds=TESTING)
+bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, test_guilds=Demo)
 
 bot.start_time = datetime.datetime.now(datetime.timezone.utc)
 
