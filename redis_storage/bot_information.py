@@ -8,3 +8,4 @@ class BotInformation(RecordBase):
     username: Optional[str] = MISSING
     uptime_time: Optional[str] = MISSING
     latency: Optional[str] = MISSING
+    version: Optional[str] = MISSING
