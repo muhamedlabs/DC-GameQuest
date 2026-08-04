@@ -59,7 +59,7 @@ class WelcomeHandler(commands.Cog):
                 disnake.MediaGalleryItem(media=f"attachment://{filename}")
             ),
             ui.Separator(divider=True),
-            ui.TextDisplay( "-# Нажмите на кнопку ниже, и благодарим за проявленный интерес к нашему спецпроекту!"
+            ui.TextDisplay( "-# Благодарим за проявленный интерес к спецпроекту! И передайте приветствие кнопку ниже."
             ),
 
             greet_row,

@@ -20,9 +20,6 @@ class GreetingButton(commands.Cog):
             return
 
     async def greet_button(self, inter: MessageInteraction, custom_id: str):
-        # with_message=True — обязателен для компонентных interaction'ов,
-        # иначе defer() тихо апдейтит ИСХОДНОЕ сообщение (с IS_COMPONENTS_V2),
-        # и потом edit_original_response с embed падает с ошибкой.
         await inter.response.defer(ephemeral=True, with_message=True)
 
         admins_mentions = " ".join(f"<@{uid}>" for uid in ALLOWED_USER_IDS)
@@ -75,8 +72,8 @@ class GreetingButton(commands.Cog):
         try:
             await target_user.send(embed=dm_embed, file=file)
         except disnake.Forbidden:
-            dm_sent = False  # у пользователя закрыты ЛС
-
+            dm_sent = False  
+            
         # Эмбед-ответ автору клика
         reply_embed = disnake.Embed(
             title=f"<:sms:1533371911411732480> Защищённая радиограмма отправлена для {target_user.display_name}",
