@@ -56,20 +56,63 @@ class VideoIntegration(commands.Cog):
             return any(role.id in GROUP_MODER_IDS for role in inter.author.roles)
         return any(role.id == GROUP_MODER_IDS for role in inter.author.roles)
 
-    def _build_embed(self, title: str, preview_url: str, youtube_link: str, vk_link: str) -> disnake.Embed:
-        embed = disnake.Embed(title=title, color=self.embed_color)
+    def _build_embed(
+        self,
+        title: str,
+        preview_url: str,
+        youtube_link: str,
+        vk_link: str,
+    ) -> disnake.ui.Container:
+        components = []
 
-        if preview_url:
-            embed.set_image(url=preview_url)
+        components.append(
+            disnake.ui.TextDisplay(
+                content=f"## <:videooctagon:1525766965292040252> {title}"
+            )
+        )
+        components.append(disnake.ui.Separator())
+
+        if self.static_header:
+            components.append(disnake.ui.TextDisplay(content=self.static_header))
 
         if youtube_link and youtube_link.strip():
-            embed.add_field(name="<:youtube:1390972086876377192> YouTube:", value=youtube_link, inline=False)
+            components.append(
+                disnake.ui.TextDisplay(
+                    content=(
+                        "### <:youtube:1390972086876377192> YouTube:\n"
+                        f"{youtube_link}"
+                    )
+                )
+            )
 
         if vk_link and vk_link.strip():
-            embed.add_field(name="<:vk:1390972535298068570> VKontakte:", value=vk_link, inline=False)
+            components.append(
+                disnake.ui.TextDisplay(
+                    content=(
+                        "### <:vk:1390972535298068570> VKontakte:\n"
+                        f"{vk_link}"
+                    )
+                )
+            )
 
-        embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
-        return embed
+        if preview_url:
+            components.append(
+                disnake.ui.MediaGallery(
+                    disnake.MediaGalleryItem(media=preview_url)
+                )
+            )
+
+        components.append(disnake.ui.Separator())
+        components.append(
+            disnake.ui.TextDisplay(
+                content="-# Благодарим за проявленный интерес к нашему спецпроекту!"
+            )
+        )
+
+        return disnake.ui.Container(
+            *components,
+            accent_colour=self.embed_color,
+        )
 
     def _confirmation_embed(
         self,
@@ -151,17 +194,16 @@ class VideoIntegration(commands.Cog):
         owner = inter.guild.owner.mention if inter.guild and inter.guild.owner else "Не назначен"
         admins_mentions = " ".join(f"<@{uid}>" for uid in ALLOWED_USER_IDS)
 
-        # Доступ — проверка синхронная, отвечаем сразу
+        await inter.response.defer(ephemeral=True)
+
         if not self._has_access(inter):
-            await inter.response.send_message(
-                embed=security_block_embed(self.embed_color, owner), ephemeral=True
+            await inter.edit_original_response(
+                embed=security_block_embed(self.embed_color, owner)
             )
             return
 
         # Режим редактирования
         if record_id:
-            await inter.response.defer(ephemeral=True)
-
             async with RedisManager() as redis:
                 record = await redis.load(DispatcherMessage, key=f"video_embed:{record_id}")
 
@@ -192,21 +234,18 @@ class VideoIntegration(commands.Cog):
                 await inter.edit_original_response(embed=invalid_input_embed(self.embed_color, admins_mentions))
                 return
 
-            old_embed = message.embeds[0] if message.embeds else disnake.Embed(color=self.embed_color)
-            old_youtube = old_vk = None
-            for field in old_embed.fields:
-                if "YouTube" in field.name:
-                    old_youtube = field.value
-                elif "VKontakte" in field.name:
-                    old_vk = field.value
-
-            new_embed = self._build_embed(
-                title=title or old_embed.title,
-                preview_url=preview_url or (old_embed.image.url if old_embed.image else None),
-                youtube_link=youtube_link or old_youtube,
-                vk_link=vk_link or old_vk,
+            new_container = self._build_embed(
+                title=title,
+                preview_url=preview_url,
+                youtube_link=youtube_link,
+                vk_link=vk_link,
             )
-            await message.edit(embed=new_embed)
+
+            await message.edit(
+                content=None,
+                embed=None,
+                components=[new_container],
+            )
 
             await inter.delete_original_response()
             await self._send_confirmation(inter, record.id, channel, inter.author, edited=True)
@@ -214,34 +253,32 @@ class VideoIntegration(commands.Cog):
 
         # Режим создания — проверки синхронные
         if not is_valid_image_url(preview_url):
-            await inter.response.send_message(
-                embed=invalid_input_embed(self.embed_color, admins_mentions), ephemeral=True
+            await inter.edit_original_response(
+                embed=invalid_input_embed(self.embed_color, admins_mentions)
             )
             return
 
         if not is_valid_youtube_url(youtube_link):
-            await inter.response.send_message(
-                embed=invalid_input_embed(self.embed_color, admins_mentions), ephemeral=True
+            await inter.edit_original_response(
+                embed=invalid_input_embed(self.embed_color, admins_mentions)
             )
             return
 
         if vk_link and vk_link.strip() and not is_valid_vk_url(vk_link):
-            await inter.response.send_message(
-                embed=invalid_input_embed(self.embed_color, admins_mentions), ephemeral=True
+            await inter.edit_original_response(
+                embed=invalid_input_embed(self.embed_color, admins_mentions)
             )
             return
 
         channel = self.bot.get_channel(VIDEO_CHANNEL_ID)
         if not channel:
-            await inter.response.send_message(
-                embed=invalid_input_embed(self.embed_color, admins_mentions), ephemeral=True
+            await inter.edit_original_response(
+                embed=invalid_input_embed(self.embed_color, admins_mentions)
             )
             return
 
-        await inter.response.defer(ephemeral=True)
-
-        embed = self._build_embed(title, preview_url, youtube_link, vk_link)
-        message: disnake.Message = await channel.send(content=self.static_header, embed=embed)
+        container = self._build_embed(title, preview_url, youtube_link, vk_link)
+        message: disnake.Message = await channel.send(components=[container])
 
         record = DispatcherMessage(
             id=str(message.id)[:8],
