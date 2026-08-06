@@ -34,12 +34,21 @@ class ResponseToCall(commands.Cog):
 
         async with self.lock:
             async with RedisManager() as redis:
-                bot_record = BotInformation(
-                    bot_id=str(self.bot.user.id),
-                    username=str(self.bot.user),
-                    uptime_time=hours_time,  # фиксируется один раз
-                    latency=f"{round(self.bot.latency * 1000)} мс"
-                )
+                existing = await redis.load(BotInformation, key)
+
+                if existing is None:
+                    bot_record = BotInformation(
+                        bot_id=str(self.bot.user.id),
+                        username=str(self.bot.user),
+                        uptime_time=hours_time,  # фиксируется один раз
+                        latency=f"{round(self.bot.latency * 1000)} мс"
+                    )
+                else:
+                    existing.username = str(self.bot.user)
+                    existing.uptime_time = hours_time
+                    existing.latency = f"{round(self.bot.latency * 1000)} мс"
+                    bot_record = existing
+
                 await redis.save(bot_record, key)
                 logger.info(f"Bot info инициализирован в Redis: {asdict(bot_record)}")
 
