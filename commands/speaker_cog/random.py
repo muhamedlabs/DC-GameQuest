@@ -17,10 +17,9 @@ class RoomSelector(commands.Cog):
         category = guild.get_channel(SPEAKER_CATEGORY_ID)
 
         if not category or not category.voice_channels:
-            print("[RoomSelector] В категории нет голосовых каналов")
             return
 
-        # ─── получаем прошлый канал из Redis ───
+        # Получаем прошлый канал из Redis
         async with RedisManager() as redis:
             previous_record = await redis.load(SpeakerVoice, key="random_channel")
 
@@ -30,17 +29,15 @@ class RoomSelector(commands.Cog):
             else None
         )
 
-        # ─── фильтруем список каналов ───
+        # Фильтруем список каналов
         available_channels = [
             vc for vc in category.voice_channels
             if vc.id != previous_channel_id
         ]
 
         if not available_channels:
-            print("[RoomSelector] Нет доступных каналов для выбора (все совпадают с предыдущим)")
             return
 
-        # ─── выбираем новый канал ───
         selected_channel = random.choice(available_channels)
 
         record = SpeakerVoice(
@@ -48,20 +45,19 @@ class RoomSelector(commands.Cog):
             random_channel_id=str(selected_channel.id)
         )
 
-        # ─── сохраняем в Redis ───
+
         async with RedisManager() as redis:
             try:
                 await redis.save(record, key="random_channel")
-            except Exception as e:
-                print(f"[RoomSelector] Ошибка сохранения в Redis: {e}")
+            except Exception:
+                return
 
-        # ─── проверяем, где сейчас бот ───
+        # Проверяем, где сейчас бот
         voice_client = next(
             (v for v in self.bot.voice_clients if v.guild == guild),
             None
         )
 
-        # ─── если бот в войсе — отключаемся через 25 сек ───
         if voice_client and voice_client.is_connected():
             await asyncio.sleep(25)
             await voice_client.disconnect()
@@ -71,16 +67,15 @@ class RoomSelector(commands.Cog):
             try:
                 record = await redis.load(SpeakerVoice, key="random_channel")
                 return record.random_channel_id if record else None
-            except Exception as e:
-                print(f"[RoomSelector] Ошибка получения из Redis: {e}")
+            except Exception:
                 return None
 
     async def delete_current_channel(self):
         async with RedisManager() as redis:
             try:
                 await redis.delete(SpeakerVoice, key="random_channel")
-            except Exception as e:
-                print(f"[RoomSelector] Ошибка удаления из Redis: {e}")
+            except Exception:
+                return
 
     @daily_channel_change.before_loop
     async def before_loop(self):

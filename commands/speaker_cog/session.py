@@ -1,13 +1,12 @@
 import disnake
 from disnake.ext import commands
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from typing import Optional, Dict
 import asyncio
 
-from BANNED_FILES.config import RedisManager
+from BANNED_FILES.config import RedisManager, Time_interval
 from redis_storage.speaker_voice import SpeakerVoice
-
-MSK = timezone(timedelta(hours=3))  # Московское время UTC+3
+from commands.information_cog.time import current_time, parse_time
 
 
 def format_duration(seconds: int) -> str:
@@ -30,8 +29,8 @@ def format_duration(seconds: int) -> str:
 class VoiceSessionTracker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_sessions: Dict[str, int] = {}  # channel_id -> session_id
-        self.tasks = set()  # для хранения созданных задач
+        self.active_sessions: Dict[str, int] = {}
+        self.tasks = set() 
         self.bot.add_listener(self.on_voice_state_update)
 
     async def _get_next_session_id(self) -> int:
@@ -58,7 +57,7 @@ class VoiceSessionTracker(commands.Cog):
                 session_id=session_id,
                 bot_id=str(self.bot.user.id),
                 channel_id=channel_id,
-                enter_voice_channel=datetime.now(MSK).isoformat()
+                enter_voice_channel=current_time()
             )
 
             key = [f"voice_session:{session_id}"]
@@ -69,8 +68,7 @@ class VoiceSessionTracker(commands.Cog):
 
             self.active_sessions[channel_id] = session_id
             return session_id
-        except Exception as e:
-            print(f"[VoiceSessionTracker] record_voice_enter error: {e}")
+        except Exception:
             return 0
 
     async def record_voice_exit(self, channel_id: Optional[str] = None, session_id: Optional[int] = None):
@@ -104,11 +102,11 @@ class VoiceSessionTracker(commands.Cog):
                         del self.active_sessions[channel_id]
                     return
 
-                start_time = datetime.fromisoformat(session.enter_voice_channel)
-                end_time = datetime.now(MSK)
+                start_time = parse_time(session.enter_voice_channel)
+                end_time = datetime.utcnow() + timedelta(hours=Time_interval)
                 duration = int((end_time - start_time).total_seconds())
 
-                session.end_voice_channel = end_time.isoformat()
+                session.end_voice_channel = current_time()
                 session.time = format_duration(duration)
 
                 await redis.save(session, key)
@@ -116,8 +114,8 @@ class VoiceSessionTracker(commands.Cog):
             if channel_id and channel_id in self.active_sessions:
                 del self.active_sessions[channel_id]
 
-        except Exception as e:
-            print(f"[VoiceSessionTracker] record_voice_exit error: {e}")
+        except Exception:
+            return
 
     async def get_session_info(self, session_id: int) -> Optional[SpeakerVoice]:
         key = [f"voice_session:{session_id}"]
@@ -131,15 +129,15 @@ class VoiceSessionTracker(commands.Cog):
                 if guild.voice_client and guild.voice_client.channel:
                     current_voice_channels.add(str(guild.voice_client.channel.id))
 
-            channels_to_remove = []
-            for channel_id in self.active_sessions:
-                if channel_id not in current_voice_channels:
-                    channels_to_remove.append(channel_id)
+            channels_to_remove = [
+                channel_id for channel_id in self.active_sessions
+                if channel_id not in current_voice_channels
+            ]
 
             for channel_id in channels_to_remove:
                 await self.record_voice_exit(channel_id=channel_id)
-        except Exception as e:
-            print(f"[VoiceSessionTracker] cleanup_orphaned_sessions error: {e}")
+        except Exception:
+            return
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: disnake.Member, before: disnake.VoiceState, after: disnake.VoiceState):
@@ -165,7 +163,6 @@ class VoiceSessionTracker(commands.Cog):
         task.add_done_callback(lambda t: self.tasks.discard(t))
 
     async def cog_unload(self):
-        # При выгрузке COG отменяем все задачи и ждём завершения
         for task in self.tasks:
             task.cancel()
         await asyncio.gather(*self.tasks, return_exceptions=True)
@@ -176,7 +173,7 @@ class VoiceSessionTracker(commands.Cog):
             try:
                 await asyncio.sleep(5)
                 await self.cleanup_orphaned_sessions()
-            except Exception as e:
-                print(f"[VoiceSessionTracker] delayed_cleanup error: {e}")
+            except Exception:
+                return
 
         self.bot.loop.create_task(delayed_cleanup())

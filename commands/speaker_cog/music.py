@@ -8,7 +8,6 @@ from disnake.ext import commands, tasks
 from BANNED_FILES.config import Music_Folder, Volume_Music, RedisManager
 from redis_storage.speaker_voice import SpeakerVoice
 
-logging.getLogger("disnake.voice_client").setLevel(logging.CRITICAL)
 
 class MusicPlayer(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -33,8 +32,8 @@ class MusicPlayer(commands.Cog):
             try:
                 await self.voice_client.disconnect(force=True)
                 self.voice_client.cleanup()
-            except Exception as e:
-                print(f"[MusicPlayer] Ошибка при отключении: {e}")
+            except Exception:
+                pass
             finally:
                 self.voice_client = None
                 self.last_disconnect_time = asyncio.get_event_loop().time()
@@ -44,16 +43,13 @@ class MusicPlayer(commands.Cog):
         async with RedisManager() as redis:
             try:
                 record = await redis.load(SpeakerVoice, key="random_channel")
-            except Exception as e:
-                print(f"[MusicPlayer] Ошибка при загрузке из Redis: {e}")
+            except Exception:
                 return None
 
         if not record or not record.random_channel_id:
-            print("[MusicPlayer] Голосовая рума не найдена в Redis")
             return None
         channel = self.bot.get_channel(int(record.random_channel_id))
         if not isinstance(channel, disnake.VoiceChannel):
-            print("[MusicPlayer] Канал в Redis не является голосовым")
             return None
         return channel
 
@@ -64,7 +60,6 @@ class MusicPlayer(commands.Cog):
 
             voice_channel = await self.get_voice_channel()
             if not voice_channel:
-                print("[MusicPlayer] Канал не найден или не является голосовым")
                 return
 
             if self.last_disconnect_time is not None:
@@ -83,15 +78,13 @@ class MusicPlayer(commands.Cog):
                 if self.integration_cog:
                     await self.integration_cog.send_or_update_message("Ожидание музыки...")
 
-            except disnake.ClientException as e:
-                print(f"[MusicPlayer] Ошибка подключения к голосовому каналу: {e}")
+            except disnake.ClientException:
                 return
 
             await asyncio.sleep(5)
 
             files = [f for f in os.listdir(self.music_folder) if f.lower().endswith((".mp3", ".wav", ".ogg", ".aac"))]
             if not files:
-                print("[MusicPlayer] Музыкальные файлы не найдены.")
                 return
 
             while True:
@@ -117,8 +110,7 @@ class MusicPlayer(commands.Cog):
                     )
                     player = disnake.PCMVolumeTransformer(source, volume=self.volume)
                     self.voice_client.play(player)
-                except Exception as e:
-                    print(f"[MusicPlayer] Ошибка воспроизведения файла {file}: {e}")
+                except Exception:
                     self.last_disconnect_time = asyncio.get_event_loop().time()
                     await self.force_disconnect()
                     break

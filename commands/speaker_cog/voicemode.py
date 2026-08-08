@@ -1,9 +1,11 @@
 import disnake
 from disnake.ext import commands
 from datetime import datetime, timedelta
-from BANNED_FILES.config import Embed_Color, GROUP_ADMIN_ID, Speechify_Image, RedisManager
+from BANNED_FILES.config import Embed_Color, GROUP_ADMIN_ID, ALLOWED_USER_IDS, Speechify_Image, RedisManager
+from commands.information_cog.warnings import critical_error_embed, invalid_input_embed, no_access_embed
+from commands.information_cog.time import hours_time
 from redis_storage.speaker_voice import SpeakerVoice
-import os
+
 
 class VoiceControl(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -15,17 +17,14 @@ class VoiceControl(commands.Cog):
         async with RedisManager() as redis:
             try:
                 record = await redis.load(SpeakerVoice, key="random_channel")
-            except Exception as e:
-                print(f"[VoiceControl] Ошибка при загрузке из Redis: {e}")
+            except Exception:
                 return None
 
         if not record or not record.random_channel_id:
-            print("[VoiceControl] Голосовая рума не найдена в Redis")
             return None
 
         channel = guild.get_channel(int(record.random_channel_id))
         if not isinstance(channel, disnake.VoiceChannel):
-            print("[VoiceControl] Канал в Redis не является голосовым")
             return None
         return channel
 
@@ -35,9 +34,9 @@ class VoiceControl(commands.Cog):
     @commands.slash_command(
         name="bot_voice",
         description="Управление голосовой связью с сержантом",
-        dm_permission=False,
-        default_member_permissions=disnake.Permissions(manage_messages=True)
     )
+    @commands.contexts(bot_dm=False, guild=True)
+    @commands.default_member_permissions(manage_messages=True, moderate_members=True, administrator=True)
     async def voice(
         self,
         inter: disnake.ApplicationCommandInteraction,
@@ -46,42 +45,41 @@ class VoiceControl(commands.Cog):
             description="Приказ для сержанта"
         )
     ):
-        # Проверка доступа по ролям
+        admins_mentions = " ".join(f"<@{uid}>" for uid in ALLOWED_USER_IDS)
+
+        # Проверка доступа по ролям — ephemeral: True
         has_access = (
             any(role.id in GROUP_ADMIN_ID for role in inter.author.roles)
             if isinstance(GROUP_ADMIN_ID, list)
             else any(role.id == GROUP_ADMIN_ID for role in inter.author.roles)
         )
         if not has_access:
-            embed = disnake.Embed(
-                title="<:forbidden:1390972224436965386> Доступ к команде заблокирован",
-                description=(
-                    "У вас **отсутствуют полномочия** для выполнения данного приказа.\n\n"
-                    f">>> Если вы считаете, что это ошибка — свяжитесь с адмиралом базы: {inter.guild.owner.mention}"
-                ),
-                color=self.embed_color
+            await inter.response.send_message(
+                embed=no_access_embed(self.embed_color, owner=inter.author),
+                ephemeral=True
             )
-            await inter.response.send_message(embed=embed, ephemeral=True)
             return
-
-        await inter.response.defer(ephemeral=True)
 
         voice_channel = await self.get_voice_channel(inter.guild)
-        if not voice_channel:
-            await inter.edit_original_response(content="Голосовой канал не найден или не является голосовым!")
-            return
-
-        file = disnake.File(Speechify_Image, filename="vocast.png")
-
         music_player = self.bot.get_cog("MusicPlayer")
-        if not music_player:
-            await inter.edit_original_response(content="Модуль MusicPlayer не загружен.")
+
+        # Канал не найден в Redis — ephemeral: True
+        if not voice_channel:
+            await inter.response.send_message(
+                embed=critical_error_embed(self.embed_color, admins_mentions),
+                ephemeral=True
+            )
             return
 
-        moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
+        # Ког MusicPlayer не загружен — ephemeral: True
+        if not music_player:
+            await inter.response.send_message(
+                embed=invalid_input_embed(self.embed_color, owner=inter.author),
+                ephemeral=True
+            )
+            return
 
         if действие == "Загнать":
-            # Очистка последних 5 сообщений, кроме закрепленных
             text_channel = inter.channel
             if isinstance(text_channel, disnake.TextChannel):
                 try:
@@ -89,43 +87,61 @@ class VoiceControl(commands.Cog):
                 except Exception:
                     pass
 
-            # Подключаем бота к голосовому каналу асинхронно
             self.bot.loop.create_task(music_player.connect_and_play())
 
             embed = disnake.Embed(
-                title="<:callcalling:1390972394268659753> Сержант подключился к сети",
+                title="<:callcalling:1390972394268659753> Сержант подключился к сектору",
                 description=(
                     f"> Голосовая связь **установлена** по приказу: {inter.author.mention}. "
                     f"Операция в полном разгаре, связь **стабильна** и под контролем штаба.\n\n"
                     f"<:channel:1390972349385281630> **Сектор:** {self.channel_mention(voice_channel)}\n"
-                    f"<:calendar:1390972430780203058> **Время подключения:** {moscow_time} по МСК"
+                    f"<:calendar:1390972430780203058> **Время подключения:** {hours_time} по МСК"
                 ),
                 color=self.embed_color
             )
             embed.set_image(url="attachment://vocast.png")
             embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
-            await inter.edit_original_response(embed=embed, file=file)
+
+            await inter.response.send_message(
+                embed=embed,
+                file=disnake.File(Speechify_Image, filename="vocast.png"),
+                ephemeral=False
+            )
 
         elif действие == "Выгнать":
-            if music_player.voice_client:
-                try:
-                    await music_player.force_disconnect()
-                except Exception as e:
-                    await inter.edit_original_response(content=f"Ошибка при отключении от голосового канала: {e}")
-                    return
-
-                embed = disnake.Embed(
-                    title="<:callslash:1390972370508054578> Сержант покинул сектор",
-                    description=(
-                        f"> Голосовая связь **разорвана** по приказу: {inter.author.mention}. "
-                        f"Линия молчит, миссия окончена. **Ожидаем** новых распоряжений штаба.\n\n"
-                        f"<:channel:1390972349385281630> **Сектор:** {self.channel_mention(voice_channel)}\n"
-                        f"<:calendar:1390972430780203058> **Время отключения:** {moscow_time} по МСК"
-                    ),
-                    color=self.embed_color
+            if not music_player.voice_client:
+                # Бот не подключён ни к какому каналу — ephemeral: True
+                await inter.response.send_message(
+                    embed=critical_error_embed(self.embed_color, admins_mentions),
+                    ephemeral=True
                 )
-                embed.set_image(url="attachment://vocast.png")
-                embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
-                await inter.edit_original_response(embed=embed, file=file)
-            else:
-                await inter.edit_original_response(content="Бот не подключён ни к одному голосовому каналу.")
+                return
+
+            try:
+                await music_player.force_disconnect()
+            except Exception:
+                # Ошибка при отключении — ephemeral: True
+                await inter.response.send_message(
+                    embed=critical_error_embed(self.embed_color, admins_mentions),
+                    ephemeral=True
+                )
+                return
+
+            embed = disnake.Embed(
+                title="<:callslash:1390972370508054578> Сержант покинул сектор",
+                description=(
+                    f"> Голосовая связь **разорвана** по приказу: {inter.author.mention}. "
+                    f"Линия молчит, миссия окончена. **Ожидаем** новых распоряжений штаба.\n\n"
+                    f"<:channel:1390972349385281630> **Сектор:** {self.channel_mention(voice_channel)}\n"
+                    f"<:calendar:1390972430780203058> **Время отключения:** {hours_time} по МСК"
+                ),
+                color=self.embed_color
+            )
+            embed.set_image(url="attachment://vocast.png")
+            embed.set_footer(text="Благодарим за проявленный интерес к нашему спецпроекту!")
+
+            await inter.response.send_message(
+                embed=embed,
+                file=disnake.File(Speechify_Image, filename="vocast.png"),
+                ephemeral=False
+            )
