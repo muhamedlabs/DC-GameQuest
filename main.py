@@ -1,14 +1,17 @@
 import disnake
 import os
 import datetime
+import logging
 import warnings
-import ashredis 
+import ashredis
 from dotenv import load_dotenv
 from disnake.ext import commands
 from BANNED_FILES.config import discord_bot, TESTING
 
 # Загрузка переменных окружения
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Настройка intents
 intents = disnake.Intents.default()
@@ -27,14 +30,36 @@ bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True, t
 
 bot.start_time = datetime.datetime.now(datetime.timezone.utc)
 
+
 # Событие при запуске
 @bot.event
 async def on_ready():
     print(f"Bot {bot.user} is up and running!")
 
 
+# Глобальный обработчик ошибок слэш-команд
+@bot.event
+async def on_slash_command_error(inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
+    if isinstance(error, commands.CheckFailure):
+        return
+
+    logger.exception(
+        "Ошибка в слэш-команде %s", inter.application_command.name, exc_info=error
+    )
+
+# Глобальный обработчик ошибок текстовых команд (через !)
+@bot.event
+async def on_command_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.CheckFailure):
+        return
+    if isinstance(error, commands.CommandNotFound):
+        return
+
+    logger.exception("Ошибка в текстовой команде %s", ctx.command, exc_info=error)
+
+
 # Загружаем коги
-bot.load_extension("commands.status_cog") # Папка статус для бота(Переменовать)
+bot.load_extension("commands.status_cog") # Папка статус для бота(Переименовать)
 
 #bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
 
