@@ -137,7 +137,7 @@ class ScamVerification(commands.Cog):
     async def warn_after_delay(self, member: disnake.Member, action: str):
         """Отправляет предупреждение через 3 минуты, если прошло больше 3 часов с последнего"""
         try:
-            await asyncio.sleep(180)
+            await asyncio.sleep(25)
 
             if self.has_verification_role(member):
                 return
