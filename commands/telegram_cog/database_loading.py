@@ -1,15 +1,14 @@
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import timedelta
 from redis_storage.social_connections import SocialConnections
 from BANNED_FILES.config import RedisManager
-from pytz import timezone
+from commands.information_cog.time import current_time as get_current_time
 
 
 class RedisMessageMapper:
     def __init__(self, bot, message_lifetime_hours: int = 24):
         self.message_lifetime = timedelta(hours=message_lifetime_hours)
         self.redis = RedisManager()
-        self.moscow_tz = timezone("Europe/Moscow")
         self.bot = bot
 
     async def add_message_mapping(
@@ -21,7 +20,7 @@ class RedisMessageMapper:
         if not telegram_message_ids:
             return
 
-        current_time = datetime.now(self.moscow_tz).isoformat()
+        current_time = get_current_time()
 
         try:
             async with self.redis:

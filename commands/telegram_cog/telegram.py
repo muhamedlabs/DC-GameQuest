@@ -1,12 +1,14 @@
 import os
 import asyncio
+from typing import Optional
 import disnake
 from disnake.ext import commands
 from disnake.errors import HTTPException
 from telethon import TelegramClient, events
-from BANNED_FILES.config import api_id, api_hash, telegram_bot, TELEGRAM_ID, TELEGRAM_DISCORD_CHANNEL_ID
+from telethon.tl.types import MessageMediaWebPage
+from BANNED_FILES.config import api_id, api_hash, telegram_bot, TELEGRAM_ID, TELEGRAM_DISCORD_CHANNEL_ID, Embed_Color, Telegram_Gif, File_Telegram, Limit_Telegram, Telegram_Title, Telegram_Text
 
-from commands.telegram_cog.text_formatting import format_telegram_message
+from commands.telegram_cog.text_formatting import format_telegram_message, escape_markdown
 from commands.telegram_cog.media_download import download_media
 from commands.telegram_cog.database_loading import RedisMessageMapper
 
@@ -20,6 +22,7 @@ class TelegramBridge(commands.Cog):
         self.grouped_media = {}
         self.grouped_tasks = {}
         self.discord_channel = None
+        self.telegram_chat_entity = None
 
         self.bot.loop.create_task(self.init_telegram())
         self.bot.loop.create_task(self.cache_discord_channel())
@@ -42,6 +45,12 @@ class TelegramBridge(commands.Cog):
     async def init_telegram(self):
         await self.bot.wait_until_ready()
         await telegram_client.start(bot_token=telegram_bot)
+
+        try:
+            self.telegram_chat_entity = await telegram_client.get_entity(TELEGRAM_ID)
+        except Exception as e:
+            print(f"Не удалось получить информацию о Telegram-чате для ссылок: {e}")
+
         telegram_client.add_event_handler(self.handle_new_message, events.NewMessage(chats=TELEGRAM_ID))
         telegram_client.add_event_handler(self.handle_edit, events.MessageEdited(chats=TELEGRAM_ID))
         telegram_client.add_event_handler(self.handle_delete, events.MessageDeleted(chats=TELEGRAM_ID))
@@ -51,6 +60,18 @@ class TelegramBridge(commands.Cog):
     async def cache_discord_channel(self):
         await self.bot.wait_until_ready()
         self.discord_channel = self.bot.get_channel(TELEGRAM_DISCORD_CHANNEL_ID)
+
+    def build_telegram_link(self, message_id: int) -> Optional[str]:
+        entity = self.telegram_chat_entity
+        if not entity:
+            return None
+        username = getattr(entity, "username", None)
+        if username:
+            return f"https://t.me/{username}/{message_id}"
+        entity_id = getattr(entity, "id", None)
+        if entity_id is None:
+            return None
+        return f"https://t.me/c/{entity_id}/{message_id}"
 
     async def handle_new_message(self, event):
         grouped_id = getattr(event.message, "grouped_id", None)
@@ -71,34 +92,99 @@ class TelegramBridge(commands.Cog):
         if events:
             await self.send_to_discord(events)
 
+    async def build_failed_media_components(self, failed_media, telegram_texts):
+        original_text = telegram_texts[0] if telegram_texts else ""
+        words = original_text.split()
+        excerpt = " ".join(words[:Limit_Telegram])
+        if len(words) > Limit_Telegram:
+            excerpt += "…"
+        excerpt = escape_markdown(excerpt) if excerpt else ""
+
+        description = Telegram_Text
+        if excerpt:
+            description += f"\n\nФрагмент информационной сводки из Telegram-канала:\n«{excerpt}»"
+
+        link = self.build_telegram_link(failed_media[0][0])
+
+        container_children = [
+            disnake.ui.TextDisplay(f"**{Telegram_Title}**"),
+            disnake.ui.Separator(),
+            disnake.ui.TextDisplay(description),
+        ]
+
+        gif_file = None
+        if Telegram_Gif and os.path.isfile(Telegram_Gif):
+            gif_filename = os.path.basename(Telegram_Gif)
+            gif_file = disnake.File(Telegram_Gif, filename=gif_filename)
+            container_children.append(
+                disnake.ui.MediaGallery(disnake.MediaGalleryItem(media=f"attachment://{gif_filename}"))
+            )
+        elif Telegram_Gif:
+            print(f"Telegram_Gif вказує на неіснуючий локальний файл: {Telegram_Gif}")
+
+        container_children.append(disnake.ui.Separator())
+        container_children.append(
+            disnake.ui.TextDisplay("-# Благодарим за проявленный интерес к нашему спецпроекту!")
+        )
+
+        if link:
+            container_children.append(
+                disnake.ui.ActionRow(disnake.ui.Button(label="Переглянути в Telegram", url=link))
+            )
+
+        container = disnake.ui.Container(
+            *container_children,
+            accent_colour=disnake.Color(int(Embed_Color.lstrip("#"), 16)),
+        )
+
+        return [container], gif_file
+
     async def send_to_discord(self, events):
-        content = ""
+        channel = self.discord_channel or self.bot.get_channel(TELEGRAM_DISCORD_CHANNEL_ID)
+        if not channel:
+            return
+
+        guild = getattr(channel, "guild", None)
+        max_file_size = guild.filesize_limit if guild else File_Telegram
+
+        raw_content = ""
         files = []
         telegram_message_ids = []
         telegram_texts = []
+        failed_media = []  # список (telegram_message_id, reason)
 
         for event in events:
             msg = event.message
             telegram_message_ids.append(msg.id)
 
-            if not content and msg.message:
-                formatted = format_telegram_message(msg.message, msg.entities or [])[:2000]
-                content = formatted
+            if not raw_content and msg.message:
+                raw_content = format_telegram_message(msg.message, msg.entities or [])
                 telegram_texts.append(msg.message)
             elif msg.message:
                 telegram_texts.append(msg.message)
 
-            if msg.media:
-                file_path = await download_media(msg, telegram_client)
+            if msg.media and not isinstance(msg.media, MessageMediaWebPage):
+                file_path, error_reason = await download_media(
+                    msg, telegram_client, max_file_size=max_file_size
+                )
                 if file_path:
-                    files.append(disnake.File(file_path))
-
-        channel = self.discord_channel or self.bot.get_channel(TELEGRAM_DISCORD_CHANNEL_ID)
-        if not channel:
-            return
+                    spoiler = bool(getattr(msg.media, "spoiler", False))
+                    files.append(disnake.File(file_path, spoiler=spoiler))
+                else:
+                    failed_media.append((msg.id, error_reason))
 
         try:
-            discord_msg = await channel.send(content=content or None, files=files[:10] or None)
+            if failed_media and not files:
+                components, gif_file = await self.build_failed_media_components(failed_media, telegram_texts)
+                discord_msg = await channel.send(
+                    components=components,
+                    file=gif_file,
+                    flags=disnake.MessageFlags(is_components_v2=True),
+                )
+            else:
+                content = raw_content[:2000] if raw_content else None
+                discord_msg = await channel.send(content=content, files=files[:10] or None)
+
             await self.message_mapper.add_message_mapping(telegram_message_ids, discord_msg.id, telegram_texts)
         except HTTPException as e:
             if e.code == 40005:

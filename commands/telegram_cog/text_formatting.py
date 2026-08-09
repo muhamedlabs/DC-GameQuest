@@ -1,5 +1,6 @@
 import re
 from typing import Union, List, Tuple, Dict, Any
+from telethon import helpers
 from telethon.tl.types import (
     MessageEntityBold, MessageEntityItalic, MessageEntityTextUrl,
     MessageEntityUrl, MessageEntityCode, MessageEntityPre,
@@ -63,7 +64,7 @@ def get_special_formatting(entity: EntityType, text: str) -> str:
     elif isinstance(entity, MessageEntityPhone):
         return f"`{text}`"  # Форматируем телефон как код
     elif isinstance(entity, MessageEntityUrl):
-        return f"<{text}>"  # Обрамляем URL в скобки чтобы не было превью
+        return text  # Обычная ссылка — пусть Discord сам показывает превью, как для любой ссылки
     return text
 
 def mask_url_for_discord(url: str) -> str:
@@ -177,22 +178,27 @@ def format_segment(segment: TextSegment, discord_mode: bool = True, hide_urls: b
     """Форматирует один сегмент текста"""
     if segment.is_link:
         # Для ссылок применяем форматирование внутри и делаем их кликабельными
-        formatted_text = segment.text
-        
-        # Применяем теги форматирования внутри ссылки
-        for entity in segment.link_entities:
-            rel_start = max(0, entity.offset - segment.start)
-            rel_end = min(len(segment.text), entity.offset + entity.length - segment.start)
-            
-            if rel_start < rel_end and rel_start < len(formatted_text):
-                tag = get_markdown_tag(entity)
-                if tag:
-                    # Применяем тег к соответствующей части текста
-                    before = formatted_text[:rel_start]
-                    middle = formatted_text[rel_start:rel_end]
-                    after = formatted_text[rel_end:]
-                    formatted_text = f"{before}{tag}{middle}{tag}{after}"
-        
+        if segment.link_entities:
+            formatted_text = segment.text
+
+            # Применяем теги форматирования внутри ссылки
+            for entity in segment.link_entities:
+                rel_start = max(0, entity.offset - segment.start)
+                rel_end = min(len(segment.text), entity.offset + entity.length - segment.start)
+
+                if rel_start < rel_end and rel_start < len(formatted_text):
+                    tag = get_markdown_tag(entity)
+                    if tag:
+                        # Применяем тег к соответствующей части текста
+                        before = formatted_text[:rel_start]
+                        middle = formatted_text[rel_start:rel_end]
+                        after = formatted_text[rel_end:]
+                        formatted_text = f"{before}{tag}{middle}{tag}{after}"
+        else:
+            # Без вложенного форматирования — экранируем текст ссылки,
+            # иначе символы вроде ] или * ломают markdown-синтаксис [текст](url)
+            formatted_text = escape_markdown(segment.text)
+
         # Используем Discord markdown формат [текст](ссылка)
         url = mask_url_for_discord(segment.link_url) if hide_urls else segment.link_url
         return f"[{formatted_text}]({url})"
@@ -217,7 +223,12 @@ def format_segment(segment: TextSegment, discord_mode: bool = True, hide_urls: b
                 formatted_text = f"{tag}{formatted_text}"
             else:
                 formatted_text = f"{tag}{formatted_text}{tag}"
-        
+
+        # Цитаты Telegram (blockquote) — добавляем ">" перед каждой строкой
+        if segment.is_blockquote:
+            lines = formatted_text.split('\n')
+            formatted_text = '\n'.join(f"> {line}" for line in lines)
+
         return formatted_text
 
 def format_telegram_message(text: str, entities: List[EntityType]) -> str:
@@ -231,8 +242,16 @@ def format_telegram_message(text: str, entities: List[EntityType]) -> str:
     if not entities:
         return escape_markdown(text)
     
+    # Telegram считает entity.offset/length в UTF-16 code units, а не в символах
+    # Python. Если перед сущностью (ссылкой, жирным текстом и т.д.) встречается
+    # символ вне BMP (например, эмодзи — 2 code unit в UTF-16, но 1 символ в
+    # Python), обычная индексация "съезжает" на 1+ символ для всего, что идёт
+    # после него. add_surrogate превращает такие символы в суррогатные пары,
+    # чтобы срез по offset/length совпадал с тем, что имел в виду Telegram.
+    surrogated_text = helpers.add_surrogate(text)
+
     # Строим сегменты
-    segments = build_segments(text, entities)
+    segments = build_segments(surrogated_text, entities)
     
     # Форматируем каждый сегмент
     result = []
@@ -240,7 +259,8 @@ def format_telegram_message(text: str, entities: List[EntityType]) -> str:
         formatted = format_segment(segment)
         result.append(formatted)
     
-    return ''.join(result)
+    # Возвращаем суррогатные пары обратно в нормальные символы перед выдачей
+    return helpers.del_surrogate(''.join(result))
 
 def format_plain_text(text: str, preserve_formatting: bool = False) -> str:
     """
