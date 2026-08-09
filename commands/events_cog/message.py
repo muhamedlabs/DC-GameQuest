@@ -3,7 +3,7 @@ from disnake.ext import commands
 import logging
 import aiohttp
 from BANNED_FILES.config import LOG_CHANNEL_ID, Embed_Color
-from commands.information_cog.time import hours_time
+from commands.information_cog.time import current_time as get_current_time
 
 
 
@@ -93,7 +93,7 @@ class MessageLogger(commands.Cog):
         description = (
             f"{rank} {message.author.mention} провёл скрытную операцию и ликвидировал сообщение в секторе {message.channel.mention}.\n\n"
             + (f"<:text:1387180247123890196> **Перехваченное сообщение:**\n{self.format_message(message.content)}\n" if message.content else "")
-            + f"<:calendar:1390972430780203058> **Время операции:** {hours_time} по МСК"
+            + f"<:calendar:1390972430780203058> **Время операции:** {get_current_time()} по МСК"
         )
 
         embed = disnake.Embed(
@@ -114,7 +114,7 @@ class MessageLogger(commands.Cog):
             f"{rank} {before.author.mention} провёл скрытную операцию и внёс корректировки в сообщение в секторе {before.channel.mention}.\n\n"
             f"<:text:1387180247123890196> **Исходное сообщение:**\n{self.format_message(before.content)}\n"
             f"<:smallcaps:1387180229763661905> **Модифицированное сообщение:**\n{self.format_message(after.content)}\n"
-            f"<:calendar:1390972430780203058> **Время фиксации:** {hours_time} по МСК"
+            f"<:calendar:1390972430780203058> **Время фиксации:** {get_current_time()} по МСК"
         )
 
         embed = disnake.Embed(
@@ -135,7 +135,7 @@ class MessageLogger(commands.Cog):
             description = (
                 f"{rank} {msg.author.mention} попал под массовую зачистку сообщений в секторе {msg.channel.mention}.\n\n"
                 + (f"<:text:1387180247123890196> **Перехвачено сообщение:**\n{self.format_message(msg.content)}\n\n" if msg.content else "")
-                + f"<:calendar:1390972430780203058> **Время операции:** {hours_time} по МСК"
+                + f"<:calendar:1390972430780203058> **Время операции:** {get_current_time()} по МСК"
             )
 
             embed = disnake.Embed(

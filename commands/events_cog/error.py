@@ -2,8 +2,8 @@ import sys
 import asyncio
 import disnake
 from disnake.ext import commands
-from datetime import datetime, timedelta
 from BANNED_FILES.config import ERR_CHANNEL_ID, Embed_Color
+from commands.information_cog.time import current_time as get_current_time
 import aiohttp
 import logging
 
@@ -115,11 +115,11 @@ class StreamDuplicator:
                 if len(text) > max_len else text
             )
 
-            moscow_time = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+            current_time = get_current_time()
 
             embed = disnake.Embed(
                 title="<:cpusetting:1387061989179658271> Критический отчёт системы военной связи",
-                description=f"```{description}```\n<:calendar:1390972430780203058> **Время отчёта:** {moscow_time} по МСК",
+                description=f"```{description}```\n<:calendar:1390972430780203058> **Время отчёта:** {current_time} по МСК",
                 color=disnake.Color(int(Embed_Color.lstrip("#"), 16))
             )
 
@@ -140,4 +140,3 @@ class ErrorLogger(commands.Cog):
 
     def cog_unload(self):
         self.stream_duplicator.stop()
-
