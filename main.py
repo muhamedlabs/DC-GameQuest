@@ -67,7 +67,7 @@ bot.load_extension("commands.speaker_cog") # Папка с войс-спикер
 
 bot.load_extension("commands.design_cog") # Папка с дизайном профилей дискорда
 
-#bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
+bot.load_extension("commands.telegram_cog") # Папка с подключения постинга из Telegram
 
 bot.load_extension("commands.advertisement_cog") # Папка с саморекламой от бота
 
