@@ -7,6 +7,7 @@ import ashredis
 from dotenv import load_dotenv
 from disnake.ext import commands
 from BANNED_FILES.config import discord_bot, TESTING
+from commands.information_cog.time import start_time_updater
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -34,6 +35,7 @@ bot.start_time = datetime.datetime.now(datetime.timezone.utc)
 # Событие при запуске
 @bot.event
 async def on_ready():
+    start_time_updater()
     print(f"Bot {bot.user} is up and running!")
 
 
