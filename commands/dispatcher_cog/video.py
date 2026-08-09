@@ -67,7 +67,7 @@ class VideoIntegration(commands.Cog):
 
         components.append(
             disnake.ui.TextDisplay(
-                content=f"## <:videooctagon:1525766965292040252> {title}"
+                content=f"## <:videoplay:1535999314894131231> {title}"
             )
         )
         components.append(disnake.ui.Separator())
