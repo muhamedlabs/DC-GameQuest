@@ -61,7 +61,7 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError):
 # Загружаем коги
 bot.load_extension("commands.status_cog") # Папка статус для бота(Переименовать)
 
-#bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
+bot.load_extension("commands.speaker_cog") # Папка с войс-спикер бот
 
 bot.load_extension("commands.design_cog") # Папка с дизайном профилей дискорда
 
