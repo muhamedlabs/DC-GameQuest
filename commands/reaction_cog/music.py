@@ -2,15 +2,13 @@ import disnake
 from disnake.ext import commands
 import asyncio
 
-from BANNED_FILES.config import Musical_Reaction, RedisManager
-from redis_storage.speaker_voice import SpeakerVoice
+from BANNED_FILES.config import Musical_Reaction
 
 
 class ReactionMusic(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.emoji_ids = Musical_Reaction
-        self.redis = RedisManager()
         self.pending_tasks: set[asyncio.Task] = set()  # отслеживаем все таски
 
     def cog_unload(self):
@@ -19,15 +17,13 @@ class ReactionMusic(commands.Cog):
             task.cancel()
         self.pending_tasks.clear()
 
-    async def get_target_channel_id(self) -> int | None:
-        try:
-            async with self.redis as redis:
-                record = await redis.load(SpeakerVoice, key="random_channel")
-                if not record or not record.random_channel_id:
-                    return None
-                return int(record.random_channel_id)
-        except Exception:
+    def get_target_channel_id(self) -> int | None:
+        music_player = self.bot.get_cog("MusicPlayer")
+
+        if music_player is None or music_player.is_disconnected():
             return None
+
+        return music_player.voice_client.channel.id
 
     async def add_reactions_later(self, message: disnake.Message):
         try:
@@ -53,7 +49,7 @@ class ReactionMusic(commands.Cog):
 
     async def safe_add_reactions(self, message: disnake.Message):
         try:
-            target_channel_id = await self.get_target_channel_id()
+            target_channel_id = self.get_target_channel_id()
             if not target_channel_id or message.channel.id != target_channel_id:
                 return
             await self.add_reactions_later(message)
@@ -61,4 +57,3 @@ class ReactionMusic(commands.Cog):
             return
         except Exception:
             return
-
