@@ -183,6 +183,7 @@ class BotBan(commands.Cog):
             await redis.save(record, key=str(message.author.id))
 
     @commands.slash_command(name="block", description="Управление реестром лиц, лишённых допуска к системе штаба")
+    @commands.contexts(bot_dm=False,  guild=True)
     @commands.default_member_permissions(moderate_members=True, administrator=True)
     async def botban(
         self,
