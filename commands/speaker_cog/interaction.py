@@ -66,7 +66,7 @@ class MusicIntegration(commands.Cog):
             )
 
             requester_line = (
-                f"<:usersquar:1388889541645172957> **Спецзаказ подал лейтенант:** {requester.mention}\n\n"
+                f"<:usersquar:1388889541645172957> **Спецзаказ подал лейтенант:** {requester.mention}"
                 if requester
                 else ""
             )
