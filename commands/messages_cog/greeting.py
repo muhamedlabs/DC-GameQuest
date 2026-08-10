@@ -1,13 +1,13 @@
 import disnake
 from disnake.ext import commands
-from BANNED_FILES.config import GREETING_CHANNEL_ID, Embed_Color, Community_Image, Words_Greetings
+from BANNED_FILES.config import CHAT_CHANNEL_ID, Embed_Color, Community_Image, Words_Greetings
 
 
 class GreetingResponder(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.greetings = Words_Greetings
-        self.channel_id = GREETING_CHANNEL_ID
+        self.channel_id = CHAT_CHANNEL_ID
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
     @commands.Cog.listener()
