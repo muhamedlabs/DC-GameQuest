@@ -1,3 +1,4 @@
+import os
 import random
 import string
 import io
@@ -10,14 +11,15 @@ from disnake.ext import commands, tasks
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from ashredis import MISSING
 
-from BANNED_FILES.config import Embed_Color, Captcha_Times, VERIFICATION_ID, Community_Image, RedisManager
+from BANNED_FILES.config import Embed_Color, Captcha_Times, VERIFICATION_ID, Community_Image, Font_Preview, RedisManager
 from redis_storage.verification_captcha import VerificationCaptcha
 from commands.information_cog.time import hours_time
 
 VERIFICATION_VALID_DAYS = 90
 CONTENT_VERIFIED = "Прошёл верификацию"
 CONTENT_EXPIRED = "Верификация не пройдена"
-CHECK_INTERVAL_MINUTES = 24
+CHECK_INTERVAL_HOURS = 24
+
 
 
 class Verification(commands.Cog):
@@ -48,7 +50,7 @@ class Verification(commands.Cog):
         self.check_expired_verifications.cancel()
 
     def generate_code(self, length: int = 5) -> str:
-        chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        chars = "АБВГДЕЖКЛМНПРСТУФХЦЧШЭЮЯ23456789"
         return "".join(random.choices(chars, k=length))
 
     def community_file(self) -> disnake.File:
@@ -102,12 +104,10 @@ class Verification(commands.Cog):
         # загрузка шрифта
         font_size = int(52 * scale)
         try:
-            font = ImageFont.truetype("arialbd.ttf", font_size)
-        except Exception:
-            try:
-                font = ImageFont.truetype("arial.ttf", font_size)
-            except Exception:
-                font = ImageFont.load_default()
+            font = ImageFont.truetype(Font_Preview, font_size)
+        except Exception as e:
+            print(f"Не удалось загрузить шрифт {Font_Preview}: {e}")
+            font = ImageFont.load_default()
 
         # рендер каждого символа с трансформациями
         char_box_w = int(70 * scale)
@@ -248,7 +248,7 @@ class Verification(commands.Cog):
         async with RedisManager() as redis:
             await redis.save(record, key=record.user_id)
 
-    @tasks.loop(hours=CHECK_INTERVAL_MINUTES)
+    @tasks.loop(hours=CHECK_INTERVAL_HOURS)
     async def check_expired_verifications(self):
         try:
             async with RedisManager() as redis:
@@ -295,10 +295,23 @@ class Verification(commands.Cog):
         user_id = inter.author.id
         now     = datetime.utcnow()
 
+        # Получаем участника и сервер для верификации
+        guild = inter.guild
+        member = inter.author
+
+        if guild is None:
+            for bot_guild in self.bot.guilds:
+                found_member = bot_guild.get_member(user_id)
+
+                if found_member is not None:
+                    guild = bot_guild
+                    member = found_member
+                    break
+
         already_has_role = False
-        if inter.guild is not None:
-            role = inter.guild.get_role(VERIFICATION_ID)
-            if role is not None and role in inter.author.roles:
+        if guild is not None:
+            role = guild.get_role(VERIFICATION_ID)
+            if role is not None and role in member.roles:
                 already_has_role = True
 
         if code is None and already_has_role:
@@ -320,7 +333,7 @@ class Verification(commands.Cog):
 
         if scenario == "already_verified":
             await inter.edit_original_response(
-                embed=self.already_verified_embed(inter.author),
+                embed=self.already_verified_embed(member),
                 file=self.community_file()
             )
             return
@@ -387,18 +400,18 @@ class Verification(commands.Cog):
         # scenario == "success"
         self.active_captchas.pop(user_id, None)
 
-        role = inter.guild.get_role(VERIFICATION_ID) if inter.guild else None
+        role = guild.get_role(VERIFICATION_ID) if guild else None
         if role is not None:
             try:
-                await inter.author.add_roles(role, reason="Успешная анти-бот верификация")
+                await member.add_roles(role, reason="Успешная анти-бот верификация")
             except disnake.Forbidden:
-                print(f"Нет прав выдать роль {inter.author.name}")
+                print(f"Нет прав выдать роль {member.name}")
         else:
             print(f"Роль VERIFICATION_ID ({VERIFICATION_ID}) не найдена на сервере")
 
-        await self.save_verification_record(inter.author)
+        await self.save_verification_record(member)
 
         await inter.edit_original_response(
-            embed=self.success_embed(inter.author),
+            embed=self.success_embed(member),
             file=self.community_file()
         )
