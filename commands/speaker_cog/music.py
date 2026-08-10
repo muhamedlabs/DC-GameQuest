@@ -2,6 +2,7 @@ import os
 import random
 import asyncio
 import subprocess
+import shutil
 
 import disnake
 from disnake.ext import commands, tasks
@@ -23,9 +24,31 @@ class _YtdlpLogger:
         pass
 
 
+def _find_project_root(start_path: str) -> str:
+    current = start_path
+
+    while True:
+        if os.path.exists(os.path.join(current, "main.py")):
+            return current
+
+        parent = os.path.dirname(current)
+
+        if parent == current:
+            return start_path
+
+        current = parent
+
+
 COOKIES_FILE = os.path.join(
-    os.getcwd(),
+    _find_project_root(
+        os.path.dirname(os.path.abspath(__file__))
+    ),
     "youtube_cookies.txt",
+)
+
+_DENO_PATH = (
+    shutil.which("deno")
+    or os.path.expanduser("~/.deno/bin/deno")
 )
 
 _YTDLP_BASE_OPTIONS = {
@@ -35,6 +58,9 @@ _YTDLP_BASE_OPTIONS = {
     "no_warnings": True,
     "noprogress": True,
     "logger": _YtdlpLogger(),
+    "remote_components": ["ejs:github"],
+    "js_runtimes": {"deno": {"path": _DENO_PATH}},
+    "geo_bypass": True,
 }
 
 YTDLP_ANDROID_OPTIONS = {
@@ -46,11 +72,29 @@ YTDLP_ANDROID_OPTIONS = {
     },
 }
 
+YTDLP_IOS_OPTIONS = {
+    **_YTDLP_BASE_OPTIONS,
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["ios"],
+        },
+    },
+}
+
+YTDLP_WEB_OPTIONS = {
+    **_YTDLP_BASE_OPTIONS,
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["web"],
+        },
+    },
+}
+
 YTDLP_COOKIES_OPTIONS = {
     **_YTDLP_BASE_OPTIONS,
     "extractor_args": {
         "youtube": {
-            "player_client": ["android", "web"],
+            "player_client": ["android", "ios", "web"],
         },
     },
 }
@@ -58,7 +102,11 @@ YTDLP_COOKIES_OPTIONS = {
 if os.path.exists(COOKIES_FILE):
     YTDLP_COOKIES_OPTIONS["cookiefile"] = COOKIES_FILE
 
-_YTDLP_ATTEMPTS = [YTDLP_ANDROID_OPTIONS]
+_YTDLP_ATTEMPTS = [
+    YTDLP_ANDROID_OPTIONS,
+    YTDLP_IOS_OPTIONS,
+    YTDLP_WEB_OPTIONS,
+]
 
 if os.path.exists(COOKIES_FILE):
     _YTDLP_ATTEMPTS.append(YTDLP_COOKIES_OPTIONS)
@@ -70,6 +118,8 @@ FFMPEG_BEFORE_OPTIONS = (
     "-reconnect_delay_max 5 "
     "-hide_banner"
 )
+
+YTDLP_EXTRACT_TIMEOUT = 20
 
 
 class MusicPlayer(commands.Cog):
@@ -96,6 +146,10 @@ class MusicPlayer(commands.Cog):
         self.custom_active = False
 
         self.auto_reconnect.start()
+
+    def cog_unload(self):
+        self.auto_reconnect.cancel()
+        asyncio.create_task(self.force_disconnect())
 
     def is_disconnected(self) -> bool:
         return (
@@ -189,10 +243,13 @@ class MusicPlayer(commands.Cog):
     async def _extract_youtube(self, url: str):
         loop = asyncio.get_event_loop()
 
-        return await loop.run_in_executor(
-            None,
-            self._extract_sync,
-            url,
+        return await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                self._extract_sync,
+                url,
+            ),
+            timeout=YTDLP_EXTRACT_TIMEOUT,
         )
 
     async def force_disconnect(self):
