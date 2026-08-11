@@ -15,7 +15,7 @@ class MessagePerson(commands.Cog):
 
     @commands.slash_command(
             name="message", 
-            description="Отправить сообщение от имени бота"
+            description="Отправить сообщение от имени сержанта"
     )
 
     @commands.contexts(bot_dm=False, guild=True)
