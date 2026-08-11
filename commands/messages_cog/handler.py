@@ -3,7 +3,7 @@ from disnake import ui
 from disnake.ext import commands
 import os
 
-from BANNED_FILES.config import GREETING_CHANNEL_ID, MAIN_ROLE_ID, Welcome_Gif, Embed_Color
+from BANNED_FILES.config import GREETING_THREAD_ID, MAIN_ROLE_ID, Welcome_Gif, Embed_Color
 from commands.button_cog.button_id import ButtonID
 
 
@@ -31,17 +31,12 @@ class WelcomeHandler(commands.Cog):
 
         # Приветственная ветка
         try:
-            welcome_channel = self.bot.get_channel(GREETING_CHANNEL_ID)
+            welcome_channel = self.bot.get_channel(GREETING_THREAD_ID)
 
             if welcome_channel is None:
-                welcome_channel = await self.bot.fetch_channel(GREETING_CHANNEL_ID)
+                welcome_channel = await self.bot.fetch_channel(GREETING_THREAD_ID)
 
             if not isinstance(welcome_channel, disnake.Thread):
-                print(
-                    f"[ERROR] GREETING_CHANNEL_ID ({GREETING_CHANNEL_ID}) "
-                    f"не является веткой. Получен объект: "
-                    f"{type(welcome_channel).__name__}"
-                )
                 return
 
             if welcome_channel.archived:
@@ -49,21 +44,21 @@ class WelcomeHandler(commands.Cog):
 
         except disnake.NotFound:
             print(
-                f"[ERROR] Ветка с ID {GREETING_CHANNEL_ID} не найдена."
+                f"[ERROR] Ветка с ID {GREETING_THREAD_ID} не найдена."
             )
             return
 
         except disnake.Forbidden:
             print(
                 f"[ERROR] Недостаточно прав для доступа к ветке "
-                f"{GREETING_CHANNEL_ID}."
+                f"{GREETING_THREAD_ID}."
             )
             return
 
         except disnake.HTTPException as e:
             print(
                 f"[ERROR] Ошибка Discord API при получении ветки "
-                f"{GREETING_CHANNEL_ID}: {e}"
+                f"{GREETING_THREAD_ID}: {e}"
             )
             return
 
