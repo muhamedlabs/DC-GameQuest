@@ -102,7 +102,7 @@ class TelegramBridge(commands.Cog):
 
         description = Telegram_Text
         if excerpt:
-            description += f"\n\nФрагмент информационной сводки из Telegram-канала:\n«{excerpt}»"
+            description += f"\n\n<:paperclip:1536793404682543224> **Фрагмент информационной сводки из Telegram-канала:**\n«{excerpt}»"
 
         link = self.build_telegram_link(failed_media[0][0])
 
