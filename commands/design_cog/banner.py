@@ -3,77 +3,64 @@ from disnake.ext import commands
 from BANNED_FILES.config import Embed_Color
 
 
+def build_banner_embed(embed_color: disnake.Color, scope: str, display_name: str, banner_url: str | None, found: bool = True) -> disnake.Embed:
+    if found:
+        description = (
+            "> Разведка **получила доступ** к центральному архиву и **извлекла** личное досье бойца.\n\n"
+            f"Перед вами **{scope} банер** — официальный боевой **профиль военнослужащего**, зафиксированный в штабной системе"
+        )
+    else:
+        description = (
+            "> Разведка **получила доступ** к центральному архиву и **извлекла** личное досье бойца.\n\n"
+            f"У бойца отсутствует **{scope} банер** в основном досье. Система активировала **резервный** визуальный профиль"
+        )
+
+    embed = disnake.Embed(
+        title=f"<:taguser:1390972104295579688> Боевой флаг — **{display_name}**",
+        description=description,
+        color=embed_color
+    )
+    if banner_url:
+        embed.set_image(url=banner_url)
+    return embed
+
+
 class BannerView(disnake.ui.View):
-    def __init__(self, user: disnake.User, member: disnake.Member | None, bot: commands.Bot):
+    def __init__(self, target_user: disnake.User, target_member: disnake.Member | None):
         super().__init__(timeout=None)
-        self.user = user
-        self.member = member
-        self.bot = bot
+        self.target_user = target_user
+        self.target_member = target_member
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
-
-    @disnake.ui.button(label="Серверный банер", style=disnake.ButtonStyle.success, custom_id="server_banner")
-    async def server_banner_button(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
-        if not self.member or not interaction.guild:
-            await interaction.response.send_message("Боец не найден на плацдарме сервера.", ephemeral=True)
-            return
-
-        try:
-            fetched_member = await interaction.guild.fetch_member(self.member.id)
-        except Exception:
-            await interaction.response.send_message("Не удалось захватить данные бойца.", ephemeral=True)
-            return
-
-        if fetched_member.banner:
-            embed = disnake.Embed(
-                title=f"<:taguser:1390972104295579688> Флагшток — {fetched_member.display_name}",
-                description="> Этот серверный флагшток развевается в честь воина, готового к бою!",
-                color=self.embed_color
-            )
-            embed.set_image(url=fetched_member.banner.url)
-        else:
-            # Если серверный баннер отсутствует, выводим глобальный — резервный флаг
-            try:
-                fetched_user = await self.bot.fetch_user(self.user.id)
-            except Exception:
-                await interaction.response.send_message("Не удалось получить данные командира.", ephemeral=True)
-                return
-
-            if fetched_user.banner:
-                embed = disnake.Embed(
-                    title=f"<:taguser:1390972104295579688> Флагшток — {fetched_user.display_name}",
-                    description="> У бойца нет серверного флагштока, показываем его глобальный знак доблести!",
-                    color=self.embed_color
-                )
-                embed.set_image(url=fetched_user.banner.url)
-            else:
-                embed = disnake.Embed(
-                    title=f"<:taguser:1390972104295579688> Флагшток — {self.user.display_name}",
-                    description="> У бойца нет знамени. Тишина на фронте.",
-                    color=self.embed_color
-                )
-        await interaction.response.edit_message(embed=embed, view=self)
 
     @disnake.ui.button(label="Глобальный банер", style=disnake.ButtonStyle.success, custom_id="global_banner")
     async def global_banner_button(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
-        try:
-            fetched_user = await self.bot.fetch_user(self.user.id)
-        except Exception:
-            await interaction.response.send_message("Не удалось получить данные командира.", ephemeral=True)
-            return
+        fetched_user = await interaction.client.fetch_user(self.target_user.id)
+        display_name = self.target_member.display_name if self.target_member else fetched_user.name
 
         if fetched_user.banner:
-            embed = disnake.Embed(
-                title=f"<:taguser:1390972104295579688> Флагшток — {fetched_user.display_name}",
-                description="> Этот глобальный флагшток развевается над всем полем боя, символ чести и отваги!",
-                color=self.embed_color
-            )
-            embed.set_image(url=fetched_user.banner.url)
+            embed = build_banner_embed(self.embed_color, "глобальный", display_name, fetched_user.banner.url, found=True)
         else:
-            embed = disnake.Embed(
-                title=f"<:taguser:1390972104295579688> Флагшток — {self.user.display_name}",
-                description="> Боец без знамени, но с несломленным духом.",
-                color=self.embed_color
+            embed = build_banner_embed(self.embed_color, "глобального", display_name, None, found=False)
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @disnake.ui.button(label="Серверный банер", style=disnake.ButtonStyle.success, custom_id="server_banner")
+    async def server_banner_button(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
+        fetched_member = None
+        if interaction.guild and self.target_member:
+            fetched_member = await interaction.guild.fetch_member(self.target_member.id)
+
+        if fetched_member and fetched_member.guild_banner:
+            embed = build_banner_embed(
+                self.embed_color, "серверный", fetched_member.display_name,
+                fetched_member.guild_banner.url, found=True
             )
+        else:
+            fetched_user = await interaction.client.fetch_user(self.target_user.id)
+            display_name = fetched_member.display_name if fetched_member else fetched_user.name
+            banner_url = fetched_user.banner.url if fetched_user.banner else None
+            embed = build_banner_embed(self.embed_color, "серверного", display_name, banner_url, found=False)
+
         await interaction.response.edit_message(embed=embed, view=self)
 
 
@@ -82,46 +69,29 @@ class BannerCommands(commands.Cog):
         self.bot = bot
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
 
-    @commands.slash_command(name="флагшток", description="Отобразить боевой флаг пользователя")
+    @commands.slash_command(name="флаг", description="Боевой флаг (банер) лейтенанта")
     async def banner(
         self,
         inter: disnake.AppCmdInter,
-        пользователь: disnake.User = commands.Param(name="пользователь", description="Участник сервера или пользователь Discord", default=None)
+        target_user: disnake.User = commands.Param(
+            name="пользователь", description="Участник сервера или пользователь Discord", default=None
+        )
     ):
-        user = пользователь or inter.author
-        member = None
-        if inter.guild:
-            try:
-                member = await inter.guild.fetch_member(user.id)
-            except Exception:
-                member = None  # Если не удалось — просто None
+        target_user = target_user or inter.author
+        target_member = inter.guild.get_member(target_user.id) if inter.guild else None
 
-        try:
-            fetched_user = await self.bot.fetch_user(user.id)
-        except Exception:
-            embed = disnake.Embed(
-                title="<:forbidden:1390972224436965386> Ошибка",
-                description="> Не удалось получить разведданные о пользователе.",
-                color=self.embed_color
-            )
-            await inter.response.send_message(embed=embed)
-            return
+        fetched_member = await inter.guild.fetch_member(target_user.id) if inter.guild else None
+        fetched_user = await self.bot.fetch_user(target_user.id)
+        display_name = target_member.display_name if target_member else fetched_user.name
 
-        # По умолчанию — показываем глобальный флагшток командира
-        if fetched_user.banner:
-            embed = disnake.Embed(
-                title=f"<:taguser:1390972104295579688> Флагшток — {fetched_user.display_name}",
-                description="> Это глобальный боевой флаг пользователя, символ доблести!",
-                color=self.embed_color
+        if fetched_member and fetched_member.guild_banner:
+            embed = build_banner_embed(
+                self.embed_color, "серверный", fetched_member.display_name,
+                fetched_member.guild_banner.url, found=True
             )
-            embed.set_image(url=fetched_user.banner.url)
         else:
-            embed = disnake.Embed(
-                title=f"<:taguser:1390972104295579688> Флагшток — {fetched_user.display_name}",
-                description="> У бойца нет боевого знамени, но дух его не сломить!",
-                color=self.embed_color
-            )
+            banner_url = fetched_user.banner.url if fetched_user.banner else None
+            embed = build_banner_embed(self.embed_color, "серверного", display_name, banner_url, found=False)
 
-        view = BannerView(user=fetched_user, member=member, bot=self.bot)
+        view = BannerView(target_user, target_member)
         await inter.response.send_message(embed=embed, view=view)
-

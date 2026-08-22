@@ -6,41 +6,47 @@ from disnake.ui import View, Button
 from BANNED_FILES.config import Embed_Color, Avatar_Folder
 
 
-class ProAvatar(commands.Cog):
-    def __init__(self, bot):
+def build_camouflage_embed(embed_color: disnake.Color, guild_name: str, username: str, index: int, total: int) -> disnake.Embed:
+    embed = disnake.Embed(
+        title=f"<:userhexagon:1391013148592443463> Панель голограм — **{guild_name}**",
+        description=(
+            f"> Лейтенант **{username}**, система готова к **настройке** вашего боевого профиля.\n\n"
+            "Выберите подходящий **боевой камуфляж** для предстоящей операции и **закрепите** его в личном досье"
+        ),
+        color=embed_color
+    )
+    embed.set_image(url="attachment://GameQuest_Camouflage.png")
+    embed.set_footer(text=f"{index + 1} / {total} — камуфляж отряда {guild_name}")
+    return embed
+
+
+class AvatarGallery(commands.Cog):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
-        self.avatars = [f for f in os.listdir(Avatar_Folder)
-                        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
+        self.avatars = [
+            file for file in os.listdir(Avatar_Folder)
+            if file.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
+        ]
 
-    @commands.slash_command(name="камуфляж", description="Панель маскировочных протоколов")
+    @commands.slash_command(name="камуфляж", description="Боевая панель камуфляжа (аватарок) лейтенанта")
     async def avatar_viewer(self, inter: disnake.AppCmdInter):
         if not self.avatars:
-            await inter.response.send_message("❌ В арсенале нет ни одного камуфляжа.")
+            await inter.response.send_message("В арсенале нет ни одного камуфляжа.")
             return
 
         current_index = 0
         file_path = os.path.join(Avatar_Folder, self.avatars[current_index])
         file = disnake.File(file_path, filename="GameQuest_Camouflage.png")
-
         username = inter.author.display_name
 
-        embed = disnake.Embed(
-            title=f"<:userhexagon:1391013148592443463> Панель голограм {inter.guild.name}",
-            description=(
-                f"> Приступай, лейтенант **{username}** к подготовке. **Выбери** подходящий камуфляж для предстоящей операции."
-            ),
-            color=self.embed_color
-        )
-        embed.set_image(url="attachment://GameQuest_Camouflage.png")
-        embed.set_footer(text=f"{current_index + 1} / {len(self.avatars)} — голограм от команди {inter.guild.name}")
-
-        view = PromoAvatar(self.avatars, current_index, self.embed_color, inter.guild.name, username)
+        embed = build_camouflage_embed(self.embed_color, inter.guild.name, username, current_index, len(self.avatars))
+        view = AvatarGalleryView(self.avatars, current_index, self.embed_color, inter.guild.name, username)
         await inter.response.send_message(embed=embed, file=file, view=view)
 
 
-class PromoAvatar(View):
-    def __init__(self, avatars, current_index, embed_color, guild_name, username):
+class AvatarGalleryView(View):
+    def __init__(self, avatars: list[str], current_index: int, embed_color: disnake.Color, guild_name: str, username: str):
         super().__init__(timeout=180)
         self.avatars = avatars
         self.current_index = current_index
@@ -82,8 +88,8 @@ class PromoAvatar(View):
 
     async def go_random(self, interaction: disnake.MessageInteraction):
         if len(self.avatars) > 1:
-            prev_index = self.current_index
-            while self.current_index == prev_index:
+            previous_index = self.current_index
+            while self.current_index == previous_index:
                 self.current_index = random.randint(0, len(self.avatars) - 1)
         await self.update_embed(interaction)
 
@@ -91,14 +97,7 @@ class PromoAvatar(View):
         file_path = os.path.join(Avatar_Folder, self.avatars[self.current_index])
         file = disnake.File(file_path, filename="GameQuest_Camouflage.png")
 
-        embed = disnake.Embed(
-            title=f"<:userhexagon:1391013148592443463> Панель голограм {self.guild_name}",
-            description=(
-                f"> Приступай, лейтенант **{self.username}** к подготовке. **Выбери** подходящий камуфляж для предстоящей операции."
-            ),
-            color=self.embed_color
+        embed = build_camouflage_embed(
+            self.embed_color, self.guild_name, self.username, self.current_index, len(self.avatars)
         )
-        embed.set_image(url="attachment://GameQuest_Camouflage.png")
-        embed.set_footer(text=f"{self.current_index + 1} / {len(self.avatars)} — голограм от команди {self.guild_name}")
-
         await interaction.response.edit_message(embed=embed, file=file, view=self)
