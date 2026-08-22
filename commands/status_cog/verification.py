@@ -11,15 +11,9 @@ from disnake.ext import commands, tasks
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from ashredis import MISSING
 
-from BANNED_FILES.config import Embed_Color, Captcha_Times, VERIFICATION_ID, Community_Image, Font_Preview, RedisManager
+from BANNED_FILES.config import Embed_Color, Captcha_Times, Verification_Valid, VERIFICATION_ID, Community_Image, Font_Preview, RedisManager
 from redis_storage.verification_captcha import VerificationCaptcha
 from commands.information_cog.time import hours_time
-
-VERIFICATION_VALID_DAYS = 90
-CONTENT_VERIFIED = "Прошёл верификацию"
-CONTENT_EXPIRED = "Верификация не пройдена"
-CHECK_INTERVAL_HOURS = 24
-
 
 
 class Verification(commands.Cog):
@@ -219,7 +213,7 @@ class Verification(commands.Cog):
             record = VerificationCaptcha(
                 user_id=str(member.id),
                 username=member.name,
-                content=CONTENT_VERIFIED,
+                content="Прошёл верификацию",
                 time_captcha=hours_time,
                 time_message=existing.time_message if existing and existing.time_message else MISSING
             )
@@ -244,18 +238,18 @@ class Verification(commands.Cog):
                 except disnake.Forbidden:
                     print(f"Нет прав снять роль верификации у {member.name}")
 
-        record.content = CONTENT_EXPIRED
+        record.content = "Верификация не пройдена"
         async with RedisManager() as redis:
             await redis.save(record, key=record.user_id)
 
-    @tasks.loop(hours=CHECK_INTERVAL_HOURS)
+    @tasks.loop(hours=24)
     async def check_expired_verifications(self):
         try:
             async with RedisManager() as redis:
                 records = await redis.load_many(VerificationCaptcha, "*")
 
             for record in records:
-                if record.content != CONTENT_VERIFIED:
+                if record.content != "Прошёл верификацию":
                     continue
 
                 # Парсим время из строки (формат hours_time: "дд.мм.гггг чч:мм:сс")
@@ -266,7 +260,7 @@ class Verification(commands.Cog):
                     print(f"Ошибка парсинга времени {record.time_captcha}: {e}")
                     continue
 
-                if now_dt - time_dt >= timedelta(days=VERIFICATION_VALID_DAYS):
+                if now_dt - time_dt >= timedelta(days=Verification_Valid):
                     await self._expire_verification(record)
         
         except Exception as e:
@@ -276,18 +270,13 @@ class Verification(commands.Cog):
     async def before_check_expired_verifications(self):
         await self.bot.wait_until_ready()
 
-    @commands.slash_command(
-        name="идентификация",
-        description="Военная система антиботовой защиты"
-    )
+    @commands.slash_command(name="идентификация",description="Военная система антиботовой защиты")
+
     async def verify(
         self,
         inter: disnake.ApplicationCommandInteraction,
-        code: str = commands.Param(
-            default=None,
-            name="код",
-            description="Введите код, отображённый на изображении"
-        ),
+        code: str = commands.Param(default=None, name="код", description="Введите код, отображённый на изображении"),
+
     ):
         if inter.author.bot:
             return
