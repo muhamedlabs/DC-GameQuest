@@ -8,7 +8,7 @@ import disnake
 from disnake.ext import commands, tasks
 import yt_dlp
 
-from BANNED_FILES.config import Embed_Color, Music_Folder, Volume_Music, RedisManager
+from BANNED_FILES.config import Embed_Color, Community_Image, Music_Folder, Volume_Music, Music_Track, Delete_Times, RedisManager
 
 from redis_storage.speaker_voice import SpeakerVoice
 
@@ -170,6 +170,7 @@ class MusicPlayer(commands.Cog):
         title: str,
         description: str,
         delete_after: float | None = None,
+        image_path: str | None = None,
     ):
         embed = disnake.Embed(
             title=title,
@@ -177,9 +178,24 @@ class MusicPlayer(commands.Cog):
             color=self.embed_color,
         )
 
+        file = None
+
+        if image_path and os.path.exists(image_path):
+            image_filename = os.path.basename(image_path)
+
+            file = disnake.File(
+                image_path,
+                filename=image_filename,
+            )
+
+            embed.set_image(
+                url=f"attachment://{image_filename}"
+            )
+
         try:
             await channel.send(
                 embed=embed,
+                file=file,
                 delete_after=delete_after,
             )
         except Exception:
@@ -193,13 +209,13 @@ class MusicPlayer(commands.Cog):
         if self.is_disconnected():
             return (
                 False,
-                "Сержант сейчас не в эфире.",
+                "Сержант сейчас не в эфире",
             )
 
         if self.is_custom_busy():
             return (
                 False,
-                "Текущий эфир **уже занят** другой композицией. **Дождитесь** окончания передачи, и после этого сможете **поставить свой** трек в очередь.",
+                "Текущий эфир **уже занят** другой композицией. **Дождитесь** окончания передачи, и после этого сможете **поставить свой** трек в очередь",
             )
 
         try:
@@ -210,27 +226,27 @@ class MusicPlayer(commands.Cog):
         except asyncio.QueueFull:
             return (
                 False,
-                "Текущий эфир **уже занят** другой композицией. **Дождитесь** окончания передачи, и после этого сможете **поставить свой** трек в очередь.",
+                "Текущий эфир **уже занят** другой композицией. **Дождитесь** окончания передачи, и после этого сможете **поставить свой** трек в очередь",
             )
 
         return (
             True,
-            "Композиция **внесена** в очередь и выйдет **в эфир** сразу после завершения текущей передачи.",
+            "Композиция **внесена** в очередь и выйдет **в эфир** сразу после завершения текущей передачи",
         )
 
-    def _extract_sync(self, url: str):
+    def _extract_single_sync(self, url: str):
         last_error: Exception | None = None
 
         for options in _YTDLP_ATTEMPTS:
             try:
-                with yt_dlp.YoutubeDL(options) as ydl:
+                with yt_dlp.YoutubeDL({**options, "noplaylist": True}) as ydl:
                     info = ydl.extract_info(
                         url,
                         download=False,
                     )
 
                     return (
-                        info["title"],
+                        info.get("title") or "Без названия",
                         info["url"],
                     )
 
@@ -240,13 +256,67 @@ class MusicPlayer(commands.Cog):
 
         raise last_error
 
-    async def _extract_youtube(self, url: str):
+    async def _extract_single(self, url: str):
         loop = asyncio.get_event_loop()
 
         return await asyncio.wait_for(
             loop.run_in_executor(
                 None,
-                self._extract_sync,
+                self._extract_single_sync,
+                url,
+            ),
+            timeout=YTDLP_EXTRACT_TIMEOUT,
+        )
+
+    def _extract_playlist_urls_sync(self, url: str) -> list[str]:
+        last_error: Exception | None = None
+
+        for options in _YTDLP_ATTEMPTS:
+            flat_options = {
+                **options,
+                "noplaylist": False,
+                "extract_flat": "in_playlist",
+                "playlistend": Music_Track,
+            }
+
+            try:
+                with yt_dlp.YoutubeDL(flat_options) as ydl:
+                    info = ydl.extract_info(
+                        url,
+                        download=False,
+                    )
+
+            except Exception as e:
+                last_error = e
+                continue
+
+            entries = info.get("entries")
+
+            if entries:
+                urls = [
+                    (entry.get("url") or entry.get("webpage_url"))
+                    for entry in entries
+                    if entry and (entry.get("url") or entry.get("webpage_url"))
+                ]
+
+                if not urls:
+                    raise ValueError(
+                        "Плейлист пуст или все видео недоступны."
+                    )
+
+                return urls
+
+            return [info.get("webpage_url") or url]
+
+        raise last_error
+
+    async def _extract_playlist_urls(self, url: str):
+        loop = asyncio.get_event_loop()
+
+        return await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                self._extract_playlist_urls_sync,
                 url,
             ),
             timeout=YTDLP_EXTRACT_TIMEOUT,
@@ -349,12 +419,10 @@ class MusicPlayer(commands.Cog):
 
         try:
             try:
-                title, stream_url = (
-                    await self._extract_youtube(url)
-                )
+                track_urls = await self._extract_playlist_urls(url)
 
             except Exception as e:
-                print(f"[MusicPlayer] yt-dlp extract failed: {e!r}")
+                print(f"[MusicPlayer] yt-dlp playlist extract failed: {e!r}")
 
                 channel = (
                     self.voice_client.channel
@@ -370,35 +438,61 @@ class MusicPlayer(commands.Cog):
                             f"Лейтенант {requester.mention}, **трек не удалось загрузить**. Заявка отклонена системой вещания. "
                             "Попробуйте передать другую ссылку на YouTube."
                         ),
-                        delete_after=15,
+                        delete_after=Delete_Times,
+                        image_path=Community_Image,
                     )
 
                 return
 
-            await self._notify_integration(
-                title,
-                custom=True,
-                requester=requester,
-            )
+            total = len(track_urls)
 
-            try:
-                source = disnake.FFmpegPCMAudio(
-                    stream_url,
-                    before_options=FFMPEG_BEFORE_OPTIONS,
-                    options="-loglevel error -vn",
-                    stderr=subprocess.DEVNULL,
+            for index, track_url in enumerate(track_urls, start=1):
+
+                if self.is_disconnected():
+                    break
+
+                try:
+                    title, stream_url = await self._extract_single(track_url)
+
+                except Exception as e:
+                    print(
+                        f"[MusicPlayer] yt-dlp resolve failed for track "
+                        f"{index}/{total}: {e!r}"
+                    )
+                    continue
+
+                display_title = (
+                    title
+                    if total == 1
+                    else f"{title} ({index}/{total})"
                 )
 
-                await self._play_and_wait(
-                    source
+                await self._notify_integration(
+                    display_title,
+                    custom=True,
+                    requester=requester,
                 )
 
-            except Exception:
-                self.last_disconnect_time = (
-                    asyncio.get_event_loop().time()
-                )
+                try:
+                    source = disnake.FFmpegPCMAudio(
+                        stream_url,
+                        before_options=FFMPEG_BEFORE_OPTIONS,
+                        options="-loglevel error -vn",
+                        stderr=subprocess.DEVNULL,
+                    )
 
-                await self.force_disconnect()
+                    await self._play_and_wait(
+                        source
+                    )
+
+                except Exception:
+                    self.last_disconnect_time = (
+                        asyncio.get_event_loop().time()
+                    )
+
+                    await self.force_disconnect()
+
+                    break
 
         finally:
             self.custom_active = False
