@@ -2,16 +2,14 @@ import disnake
 from disnake.ext import commands
 import logging
 import aiohttp
-from BANNED_FILES.config import LOG_CHANNEL_ID, Embed_Color
+from BANNED_FILES.config import LOG_MESSAGE_THREAD_ID, Embed_Color
 from commands.information_cog.time import current_time as get_current_time
-
-
 
 
 class MessageLogger(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.log_channel_id = LOG_CHANNEL_ID
+        self.log_thread_id = LOG_MESSAGE_THREAD_ID
         self.embed_color = disnake.Color(int(Embed_Color.lstrip("#"), 16))
         self.webhook_cache = {}
         self.bot_avatar: bytes = b""
@@ -30,25 +28,33 @@ class MessageLogger(commands.Cog):
         except Exception as e:
             logging.error(f"[Avatar] Ошибка при загрузке аватарки бота: {e}")
 
-    async def get_or_create_webhook(self, channel: disnake.TextChannel) -> disnake.Webhook:
+    async def get_or_create_webhook(self, thread: disnake.Thread) -> disnake.Webhook:
         webhook_name = f"{self.bot.user.name}_Messages"
-        if channel.id in self.webhook_cache:
-            return self.webhook_cache[channel.id]
+        if thread.id in self.webhook_cache:
+            return self.webhook_cache[thread.id]
 
         try:
-            webhooks = await channel.webhooks()
+            # Получаем родительский канал ветки
+            parent_channel = thread.parent
+            if not parent_channel:
+                logging.error(f"[Webhook] Не удалось получить родительский канал для ветки {thread.id}")
+                return None
+
+            # Получаем вебхуки из родительского канала
+            webhooks = await parent_channel.webhooks()
             for wh in webhooks:
                 if wh.name == webhook_name:
-                    self.webhook_cache[channel.id] = wh
+                    self.webhook_cache[thread.id] = wh
                     return wh
 
-            webhook = await channel.create_webhook(name=webhook_name, avatar=self.bot_avatar)
-            self.webhook_cache[channel.id] = webhook
+            # Создаём вебхук в родительском канале
+            webhook = await parent_channel.create_webhook(name=webhook_name, avatar=self.bot_avatar)
+            self.webhook_cache[thread.id] = webhook
             return webhook
         except disnake.Forbidden:
-            logging.error(f"[Webhook] Нет прав создать вебхук в канале {channel.id}")
+            logging.error(f"[Webhook] Нет прав создавать вебхуки в канале {thread.parent.id}")
         except Exception as e:
-            logging.error(f"[Webhook] Ошибка при создании вебхука: {e}")
+            logging.error(f"[Webhook] Ошибка при получении или создании вебхука: {e}")
 
         return None
 
@@ -56,30 +62,35 @@ class MessageLogger(commands.Cog):
         return "Сержант" if member.bot else "Лейтенант"
 
     async def send_log(self, guild, embed):
-        channel = guild.get_channel(self.log_channel_id)
-        if not isinstance(channel, disnake.TextChannel):
-            logging.error("Канал логов не найден или не является текстовым.")
+        # Получаем ветку по ID из конфига
+        thread = guild.get_thread(self.log_thread_id)
+        
+        # Проверяем, что это действительно ветка
+        if not isinstance(thread, disnake.Thread):
+            logging.error(f"[LogThread] Объект с ID {self.log_thread_id} не является веткой")
             return
 
         if not self.bot_avatar:
             await self.cache_bot_avatar()
 
-        webhook = await self.get_or_create_webhook(channel)
+        webhook = await self.get_or_create_webhook(thread)
         if webhook is None:
-            logging.error("Вебхук не получен. Лог не отправлен.")
+            logging.error("[Webhook] Вебхук не получен, лог не отправлен")
             return
 
         try:
+            # Отправляем именно в ветку, указывая thread параметр
             await webhook.send(
                 embed=embed,
                 username=f"{self.bot.user.name}_Messages",
                 avatar_url=self.bot.user.avatar.url if self.bot.user.avatar else None,
-                allowed_mentions=disnake.AllowedMentions.none()
+                allowed_mentions=disnake.AllowedMentions.none(),
+                thread=thread  # <-- КЛЮЧЕВОЙ МОМЕНТ: указываем ветку для отправки
             )
         except disnake.Forbidden:
-            logging.error("Нет прав на отправку через вебхук.")
+            logging.error("[Webhook] Нет прав на отправку через вебхук")
         except Exception as e:
-            logging.error(f"Ошибка при отправке через вебхук: {e}")
+            logging.error(f"[Webhook] Ошибка при отправке через вебхук: {e}")
 
     def format_message(self, content: str) -> str:
         return f"```{content[:1000]}```" if content else "—"
