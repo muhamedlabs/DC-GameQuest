@@ -2,7 +2,7 @@ import sys
 import asyncio
 import disnake
 from disnake.ext import commands
-from BANNED_FILES.config import ERROR_CHANNEL_ID, Embed_Color, Error_Timer
+from BANNED_FILES.config import ERROR_CHANNEL_ID, Embed_Color, Error_Times
 from commands.information_cog.time import current_time as get_current_time, parse_time
 import aiohttp
 import logging
@@ -41,7 +41,7 @@ class StreamDuplicator:
             if line:
                 if self.start_time is not None:
                     elapsed = (parse_time(get_current_time()) - self.start_time).total_seconds()
-                    if elapsed < Error_Timer:
+                    if elapsed < Error_Times:
                         continue
                 try:
                     loop = asyncio.get_event_loop()
